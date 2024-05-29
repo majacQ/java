@@ -5,20 +5,22 @@ import com.pubnub.api.PubNub;
 import com.pubnub.api.PubNubException;
 import com.pubnub.api.PubNubUtil;
 import com.pubnub.api.builder.PubNubErrorBuilder;
-import com.pubnub.api.endpoints.Endpoint;
+import com.pubnub.api.crypto.CryptoModule;
+import com.pubnub.api.crypto.CryptoModuleKt;
 import com.pubnub.api.endpoints.BuilderSteps.ChannelStep;
+import com.pubnub.api.endpoints.Endpoint;
+import com.pubnub.api.endpoints.files.requiredparambuilder.ChannelFileNameFileIdBuilder;
 import com.pubnub.api.endpoints.files.requiredparambuilder.FilesBuilderSteps.FileIdStep;
 import com.pubnub.api.endpoints.files.requiredparambuilder.FilesBuilderSteps.FileNameStep;
-import com.pubnub.api.endpoints.files.requiredparambuilder.ChannelFileNameFileIdBuilder;
 import com.pubnub.api.enums.PNOperationType;
 import com.pubnub.api.managers.MapperManager;
 import com.pubnub.api.managers.RetrofitManager;
 import com.pubnub.api.managers.TelemetryManager;
+import com.pubnub.api.managers.token_manager.TokenManager;
 import com.pubnub.api.models.consumer.files.PNBaseFile;
 import com.pubnub.api.models.consumer.files.PNPublishFileMessageResult;
 import com.pubnub.api.models.server.files.FileUploadNotification;
 import com.pubnub.api.services.FilesService;
-import com.pubnub.api.vendor.Crypto;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import retrofit2.Call;
@@ -50,8 +52,9 @@ public class PublishFileMessage extends Endpoint<List<Object>, PNPublishFileMess
                               String fileId,
                               PubNub pubnubInstance,
                               TelemetryManager telemetry,
-                              RetrofitManager retrofitInstance) {
-        super(pubnubInstance, telemetry, retrofitInstance);
+                              RetrofitManager retrofitInstance,
+                              TokenManager tokenManager) {
+        super(pubnubInstance, telemetry, retrofitInstance, tokenManager);
         this.channel = channel;
         this.pnFile = new PNBaseFile(fileId, fileName);
         this.filesService = retrofitInstance.getFilesService();
@@ -83,11 +86,12 @@ public class PublishFileMessage extends Endpoint<List<Object>, PNPublishFileMess
 
     @Override
     protected Call<List<Object>> doWork(Map<String, String> baseParams) throws PubNubException {
-        String stringifiedMessage = mapper.toJsonUsinJackson(new FileUploadNotification(this.message, pnFile));
+        String stringifiedMessage = mapper.toJson(new FileUploadNotification(this.message, pnFile));
         String messageAsString;
-        if (getPubnub().getConfiguration().getCipherKey() != null) {
-            Crypto crypto = new Crypto(getPubnub().getConfiguration().getCipherKey(), getPubnub().getConfiguration().isUseRandomInitializationVector());
-            messageAsString = "\"".concat(crypto.encrypt(stringifiedMessage)).concat("\"");
+        CryptoModule cryptoModule = getPubnub().getCryptoModule();
+        if (cryptoModule != null) {
+            String encryptString = CryptoModuleKt.encryptString(cryptoModule, stringifiedMessage);
+            messageAsString = "\"".concat(encryptString).concat("\"");
         } else {
             messageAsString = PubNubUtil.urlEncode(stringifiedMessage);
         }
@@ -95,7 +99,7 @@ public class PublishFileMessage extends Endpoint<List<Object>, PNPublishFileMess
         final HashMap<String, String> params = new HashMap<>(baseParams);
 
         if (meta != null) {
-            String stringifiedMeta = mapper.toJsonUsinJackson(meta);
+            String stringifiedMeta = mapper.toJson(meta);
             stringifiedMeta = PubNubUtil.urlEncode(stringifiedMeta);
             params.put("meta", stringifiedMeta);
         }
@@ -149,8 +153,9 @@ public class PublishFileMessage extends Endpoint<List<Object>, PNPublishFileMess
 
     public static Builder builder(PubNub pubNub,
                                   TelemetryManager telemetryManager,
-                                  RetrofitManager retrofitManager) {
+                                  RetrofitManager retrofitManager,
+                                  TokenManager tokenManager) {
         return new Builder(ChannelFileNameFileIdBuilder.create((channel, fileName, fileId) ->
-                new PublishFileMessage(channel, fileName, fileId, pubNub, telemetryManager, retrofitManager)));
+                new PublishFileMessage(channel, fileName, fileId, pubNub, telemetryManager, retrofitManager, tokenManager)));
     }
 }

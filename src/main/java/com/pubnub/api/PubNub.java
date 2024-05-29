@@ -5,6 +5,8 @@ import com.pubnub.api.builder.PubNubErrorBuilder;
 import com.pubnub.api.builder.SubscribeBuilder;
 import com.pubnub.api.builder.UnsubscribeBuilder;
 import com.pubnub.api.callbacks.SubscribeCallback;
+import com.pubnub.api.crypto.CryptoModule;
+import com.pubnub.api.crypto.CryptoModuleKt;
 import com.pubnub.api.endpoints.DeleteMessages;
 import com.pubnub.api.endpoints.FetchMessages;
 import com.pubnub.api.endpoints.History;
@@ -12,6 +14,8 @@ import com.pubnub.api.endpoints.MessageCounts;
 import com.pubnub.api.endpoints.Time;
 import com.pubnub.api.endpoints.access.Grant;
 import com.pubnub.api.endpoints.access.GrantToken;
+import com.pubnub.api.endpoints.access.RevokeToken;
+import com.pubnub.api.endpoints.access.builder.GrantTokenBuilder;
 import com.pubnub.api.endpoints.channel_groups.AddChannelChannelGroup;
 import com.pubnub.api.endpoints.channel_groups.AllChannelsChannelGroup;
 import com.pubnub.api.endpoints.channel_groups.DeleteChannelGroup;
@@ -63,10 +67,9 @@ import com.pubnub.api.managers.RetrofitManager;
 import com.pubnub.api.managers.StateManager;
 import com.pubnub.api.managers.SubscriptionManager;
 import com.pubnub.api.managers.TelemetryManager;
+import com.pubnub.api.managers.token_manager.TokenManager;
 import com.pubnub.api.managers.token_manager.TokenParser;
 import com.pubnub.api.models.consumer.access_manager.v3.PNToken;
-import com.pubnub.api.vendor.Crypto;
-import com.pubnub.api.vendor.FileEncryptionUtil;
 import lombok.Getter;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -102,18 +105,25 @@ public class PubNub {
     private static final int TIMESTAMP_DIVIDER = 1000;
     private static final int MAX_SEQUENCE = 65535;
 
-    private static final String SDK_VERSION = "5.1.0";
+    private static final String SDK_VERSION = "6.4.5";
     private final ListenerManager listenerManager;
     private final StateManager stateManager;
+
+    private final TokenManager tokenManager;
+
+    public CryptoModule getCryptoModule() {
+        return configuration.getCryptoModule();
+    }
 
     public PubNub(@NotNull PNConfiguration initialConfig) {
         this.configuration = initialConfig;
         this.mapper = new MapperManager();
         this.telemetryManager = new TelemetryManager();
         this.basePathManager = new BasePathManager(initialConfig);
-        this.retrofitManager = new RetrofitManager(this);
         this.listenerManager = new ListenerManager(this);
+        this.retrofitManager = new RetrofitManager(this);
         this.stateManager = new StateManager(this.configuration);
+        this.tokenManager = new TokenManager();
         final ReconnectionManager reconnectionManager = new ReconnectionManager(this);
         final DelayedReconnectionManager delayedReconnectionManager = new DelayedReconnectionManager(this);
         final DuplicationManager duplicationManager = new DuplicationManager(this.configuration);
@@ -124,10 +134,19 @@ public class PubNub {
                 listenerManager,
                 reconnectionManager,
                 delayedReconnectionManager,
-                duplicationManager);
+                duplicationManager,
+                tokenManager);
         this.publishSequenceManager = new PublishSequenceManager(MAX_SEQUENCE);
         this.tokenParser = new TokenParser();
         instanceId = UUID.randomUUID().toString();
+    }
+
+    /**
+     * @deprecated
+     */
+    @NotNull
+    public static String generateUUID() {
+        return "pn-" + UUID.randomUUID();
     }
 
     @NotNull
@@ -163,193 +182,207 @@ public class PubNub {
 
     @NotNull
     public AddChannelsToPush addPushNotificationsOnChannels() {
-        return new AddChannelsToPush(this, this.telemetryManager, this.retrofitManager);
+        return new AddChannelsToPush(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public RemoveChannelsFromPush removePushNotificationsFromChannels() {
-        return new RemoveChannelsFromPush(this, this.telemetryManager, this.retrofitManager);
+        return new RemoveChannelsFromPush(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public RemoveAllPushChannelsForDevice removeAllPushNotificationsFromDeviceWithPushToken() {
-        return new RemoveAllPushChannelsForDevice(this, this.telemetryManager, this.retrofitManager);
+        return new RemoveAllPushChannelsForDevice(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public ListPushProvisions auditPushChannelProvisions() {
-        return new ListPushProvisions(this, this.telemetryManager, this.retrofitManager);
+        return new ListPushProvisions(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     // end push
 
     @NotNull
     public WhereNow whereNow() {
-        return new WhereNow(this, this.telemetryManager, this.retrofitManager);
+        return new WhereNow(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public HereNow hereNow() {
-        return new HereNow(this, this.telemetryManager, this.retrofitManager);
+        return new HereNow(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public Time time() {
-        return new Time(this, this.telemetryManager, this.retrofitManager);
+        return new Time(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public History history() {
-        return new History(this, this.telemetryManager, this.retrofitManager);
+        return new History(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public FetchMessages fetchMessages() {
-        return new FetchMessages(this, this.telemetryManager, this.retrofitManager);
+        return new FetchMessages(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public DeleteMessages deleteMessages() {
-        return new DeleteMessages(this, this.telemetryManager, this.retrofitManager);
+        return new DeleteMessages(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public MessageCounts messageCounts() {
-        return new MessageCounts(this, this.telemetryManager, this.retrofitManager);
+        return new MessageCounts(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public Grant grant() {
-        return new Grant(this, this.telemetryManager, this.retrofitManager);
+        return new Grant(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
+    }
+
+    /**
+     * @deprecated Use {@link #grantToken(Integer)} instead.
+     */
+    @NotNull
+    public GrantTokenBuilder grantToken() {
+        return new GrantTokenBuilder(new GrantToken(this, this.telemetryManager, this.retrofitManager, this.tokenManager));
     }
 
     @NotNull
-    public GrantToken grantToken() {
-        return new GrantToken(this, this.telemetryManager, this.retrofitManager);
+    @SuppressWarnings("deprecation")
+    public GrantTokenBuilder grantToken(Integer ttl) {
+        return new GrantTokenBuilder(new GrantToken(this, this.telemetryManager, this.retrofitManager, this.tokenManager)).ttl(ttl);
+    }
+
+    @NotNull
+    public RevokeToken revokeToken() {
+        return new RevokeToken(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public GetState getPresenceState() {
-        return new GetState(this, this.telemetryManager, this.retrofitManager);
+        return new GetState(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public SetState setPresenceState() {
-        return new SetState(this, subscriptionManager, this.telemetryManager, this.retrofitManager);
+        return new SetState(this, subscriptionManager, this.telemetryManager, this.retrofitManager, tokenManager);
     }
 
     @NotNull
     public Publish publish() {
-        return new Publish(this, publishSequenceManager, this.telemetryManager, this.retrofitManager);
+        return new Publish(this, publishSequenceManager, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public Signal signal() {
-        return new Signal(this, this.telemetryManager, this.retrofitManager);
+        return new Signal(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public ListAllChannelGroup listAllChannelGroups() {
-        return new ListAllChannelGroup(this, this.telemetryManager, this.retrofitManager);
+        return new ListAllChannelGroup(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public AllChannelsChannelGroup listChannelsForChannelGroup() {
-        return new AllChannelsChannelGroup(this, this.telemetryManager, this.retrofitManager);
+        return new AllChannelsChannelGroup(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public AddChannelChannelGroup addChannelsToChannelGroup() {
-        return new AddChannelChannelGroup(this, this.telemetryManager, this.retrofitManager);
+        return new AddChannelChannelGroup(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public RemoveChannelChannelGroup removeChannelsFromChannelGroup() {
-        return new RemoveChannelChannelGroup(this, this.telemetryManager, this.retrofitManager);
+        return new RemoveChannelChannelGroup(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public DeleteChannelGroup deleteChannelGroup() {
-        return new DeleteChannelGroup(this, this.telemetryManager, this.retrofitManager);
+        return new DeleteChannelGroup(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     // Start Objects API
 
     public SetUUIDMetadata setUUIDMetadata() {
-        return SetUUIDMetadata.create(this, this.telemetryManager, this.retrofitManager);
+        return SetUUIDMetadata.create(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public GetAllUUIDMetadata getAllUUIDMetadata() {
-        return GetAllUUIDMetadata.create(this, this.telemetryManager, this.retrofitManager);
+        return GetAllUUIDMetadata.create(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public GetUUIDMetadata getUUIDMetadata() {
-        return GetUUIDMetadata.create(this, this.telemetryManager, this.retrofitManager);
+        return GetUUIDMetadata.create(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public RemoveUUIDMetadata removeUUIDMetadata() {
-        return new RemoveUUIDMetadata(this, this.telemetryManager, this.retrofitManager);
+        return new RemoveUUIDMetadata(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     public SetChannelMetadata.Builder setChannelMetadata() {
-        return SetChannelMetadata.builder(this, this.telemetryManager, this.retrofitManager);
+        return SetChannelMetadata.builder(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public GetAllChannelsMetadata getAllChannelsMetadata() {
-        return GetAllChannelsMetadata.create(this, this.telemetryManager, this.retrofitManager);
+        return GetAllChannelsMetadata.create(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public GetChannelMetadata.Builder getChannelMetadata() {
-        return GetChannelMetadata.builder(this, this.telemetryManager, this.retrofitManager);
+        return GetChannelMetadata.builder(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     public RemoveChannelMetadata.Builder removeChannelMetadata() {
-        return RemoveChannelMetadata.builder(this, this.telemetryManager, this.retrofitManager);
+        return RemoveChannelMetadata.builder(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public GetMemberships getMemberships() {
-        return GetMemberships.create(this, this.telemetryManager, this.retrofitManager);
+        return GetMemberships.create(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public SetMemberships.Builder setMemberships() {
-        return SetMemberships.builder(this, this.telemetryManager, this.retrofitManager);
+        return SetMemberships.builder(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public RemoveMemberships.Builder removeMemberships() {
-        return RemoveMemberships.builder(this, this.telemetryManager, this.retrofitManager);
+        return RemoveMemberships.builder(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public ManageMemberships.Builder manageMemberships() {
-        return ManageMemberships.builder(this, this.telemetryManager, this.retrofitManager);
+        return ManageMemberships.builder(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public GetChannelMembers.Builder getChannelMembers() {
-        return GetChannelMembers.builder(this, this.telemetryManager, this.retrofitManager);
+        return GetChannelMembers.builder(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public SetChannelMembers.Builder setChannelMembers() {
-        return SetChannelMembers.builder(this, this.telemetryManager, this.retrofitManager);
+        return SetChannelMembers.builder(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public RemoveChannelMembers.Builder removeChannelMembers() {
-        return RemoveChannelMembers.builder(this, this.telemetryManager, this.retrofitManager);
+        return RemoveChannelMembers.builder(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public ManageChannelMembers.Builder manageChannelMembers() {
-        return ManageChannelMembers.builder(this, this.telemetryManager, this.retrofitManager);
+        return ManageChannelMembers.builder(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     // End Objects API
@@ -358,56 +391,60 @@ public class PubNub {
 
     @NotNull
     public AddMessageAction addMessageAction() {
-        return new AddMessageAction(this, this.telemetryManager, this.retrofitManager);
+        return new AddMessageAction(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public GetMessageActions getMessageActions() {
-        return new GetMessageActions(this, this.telemetryManager, this.retrofitManager);
+        return new GetMessageActions(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     @NotNull
     public RemoveMessageAction removeMessageAction() {
-        return new RemoveMessageAction(this, this.telemetryManager, this.retrofitManager);
+        return new RemoveMessageAction(this, this.telemetryManager, this.retrofitManager, this.tokenManager);
     }
 
     // End Message Actions API
 
     @NotNull
     public SendFile.Builder sendFile() {
-        return SendFile.builder(this, telemetryManager, retrofitManager);
+        return SendFile.builder(this, telemetryManager, retrofitManager, tokenManager);
     }
 
     public ListFiles.Builder listFiles() {
-        return new ListFiles.Builder(this, telemetryManager, retrofitManager);
+        return new ListFiles.Builder(this, telemetryManager, retrofitManager, tokenManager);
     }
 
     public GetFileUrl.Builder getFileUrl() {
         return GetFileUrl.builder(
                 this,
                 telemetryManager,
-                retrofitManager);
+                retrofitManager,
+                tokenManager);
     }
 
     public DownloadFile.Builder downloadFile() {
         return DownloadFile.builder(
                 this,
                 telemetryManager,
-                retrofitManager);
+                retrofitManager,
+                tokenManager);
     }
 
     public DeleteFile.Builder deleteFile() {
         return DeleteFile.builder(
                 this,
                 telemetryManager,
-                retrofitManager);
+                retrofitManager,
+                tokenManager);
     }
 
     public PublishFileMessage.Builder publishFileMessage() {
         return PublishFileMessage.builder(
                 this,
                 telemetryManager,
-                retrofitManager);
+                retrofitManager,
+                tokenManager);
     }
 
     // public methods
@@ -423,8 +460,7 @@ public class PubNub {
         if (inputString == null) {
             throw PubNubException.builder().pubnubError(PubNubErrorBuilder.PNERROBJ_INVALID_ARGUMENTS).build();
         }
-
-        return decrypt(inputString, this.getConfiguration().getCipherKey());
+        return decrypt(inputString, null);
     }
 
     /**
@@ -440,16 +476,33 @@ public class PubNub {
         if (inputString == null) {
             throw PubNubException.builder().pubnubError(PubNubErrorBuilder.PNERROBJ_INVALID_ARGUMENTS).build();
         }
-        boolean dynamicIV = this.getConfiguration().isUseRandomInitializationVector();
-        return new Crypto(cipherKey, dynamicIV).decrypt(inputString);
+        CryptoModule cryptoModule = getCryptoModuleOrThrow(cipherKey);
+
+        return CryptoModuleKt.decryptString(cryptoModule, inputString);
+    }
+
+    private CryptoModule getCryptoModuleOrThrow(String cipherKey) throws PubNubException {
+        CryptoModule effectiveCryptoModule;
+        if (cipherKey != null) {
+            effectiveCryptoModule = CryptoModule.createLegacyCryptoModule(cipherKey, this.getConfiguration().isUseRandomInitializationVector());
+        } else {
+            CryptoModule cryptoModule = getCryptoModule();
+            if (cryptoModule != null) {
+                effectiveCryptoModule = cryptoModule;
+            } else {
+                throw PubNubException.builder().errormsg("Crypto module is not initialized").build();
+            }
+        }
+        return effectiveCryptoModule;
     }
 
     public InputStream decryptInputStream(InputStream inputStream) throws PubNubException {
-        return decryptInputStream(inputStream, this.getConfiguration().getCipherKey());
+        return decryptInputStream(inputStream, null);
     }
 
     public InputStream decryptInputStream(InputStream inputStream, String cipherKey) throws PubNubException {
-        return FileEncryptionUtil.decrypt(cipherKey, inputStream);
+        CryptoModule cryptoModule = getCryptoModuleOrThrow(cipherKey);
+        return cryptoModule.decryptStream(inputStream);
     }
 
     /**
@@ -464,7 +517,7 @@ public class PubNub {
             throw PubNubException.builder().pubnubError(PubNubErrorBuilder.PNERROBJ_INVALID_ARGUMENTS).build();
         }
 
-        return encrypt(inputString, this.getConfiguration().getCipherKey());
+        return encrypt(inputString, null);
     }
 
     /**
@@ -481,16 +534,17 @@ public class PubNub {
             throw PubNubException.builder().pubnubError(PubNubErrorBuilder.PNERROBJ_INVALID_ARGUMENTS).build();
         }
 
-        boolean dynamicIV = this.getConfiguration().isUseRandomInitializationVector();
-        return new Crypto(cipherKey, dynamicIV).encrypt(inputString);
+        CryptoModule cryptoModule = getCryptoModuleOrThrow(cipherKey);
+        return CryptoModuleKt.encryptString(cryptoModule, inputString);
     }
 
     public InputStream encryptInputStream(InputStream inputStream) throws PubNubException {
-        return encryptInputStream(inputStream, this.getConfiguration().getCipherKey());
+        return encryptInputStream(inputStream, null);
     }
 
     public InputStream encryptInputStream(InputStream inputStream, String cipherKey) throws PubNubException {
-        return FileEncryptionUtil.encrypt(cipherKey, inputStream);
+        CryptoModule cryptoModule = getCryptoModuleOrThrow(cipherKey);
+        return cryptoModule.encryptStream(inputStream);
     }
 
     public int getTimestamp() {
@@ -589,5 +643,9 @@ public class PubNub {
 
     public PNToken parseToken(String token) throws PubNubException {
         return tokenParser.unwrapToken(token);
+    }
+
+    public void setToken(String token) {
+        tokenManager.setToken(token);
     }
 }

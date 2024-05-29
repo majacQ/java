@@ -1,19 +1,22 @@
 package com.pubnub.api.managers;
 
 import com.pubnub.api.PNConfiguration;
+import com.pubnub.api.PubNubException;
+import com.pubnub.api.UserId;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.UUID;
 
 public class BasePathManagerTest {
 
     private PNConfiguration pnConfiguration;
 
     @Before
-    public void beforeEach() throws IOException {
-        pnConfiguration = new PNConfiguration();
+    public void beforeEach() throws IOException, PubNubException {
+        pnConfiguration =  new PNConfiguration(new UserId("pn-" + UUID.randomUUID()));
     }
 
     @Test
@@ -46,6 +49,7 @@ public class BasePathManagerTest {
         Assert.assertEquals("https://custom.origin.com", basePathManager.getBasePath());
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     public void customOriginNotSecureWithCacheBusting() {
         pnConfiguration.setOrigin("custom.origin.com");
@@ -55,6 +59,7 @@ public class BasePathManagerTest {
         Assert.assertEquals("http://custom.origin.com", basePathManager.getBasePath());
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     public void customOriginSecureWithCacheBusting() {
         pnConfiguration.setOrigin("custom.origin.com");
@@ -64,6 +69,7 @@ public class BasePathManagerTest {
         Assert.assertEquals("https://custom.origin.com", basePathManager.getBasePath());
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     public void cacheBustingNotSecure() {
         pnConfiguration.setCacheBusting(true);
@@ -92,6 +98,7 @@ public class BasePathManagerTest {
         Assert.assertEquals("http://ps1.pndsn.com", basePathManager.getBasePath());
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     public void cacheBustingSecure() {
         pnConfiguration.setCacheBusting(true);

@@ -7,6 +7,7 @@ import com.pubnub.api.PubNubException;
 import com.pubnub.api.callbacks.PNCallback;
 import com.pubnub.api.endpoints.TestHarness;
 import com.pubnub.api.managers.RetrofitManager;
+import com.pubnub.api.managers.token_manager.TokenManager;
 import com.pubnub.api.models.consumer.PNStatus;
 import org.awaitility.Awaitility;
 import org.jetbrains.annotations.NotNull;
@@ -35,10 +36,10 @@ public class LeaveTest extends TestHarness {
     private PubNub pubnub;
 
     @Before
-    public void beforeEach() throws IOException {
+    public void beforeEach() throws IOException, PubNubException {
         pubnub = this.createPubNubInstance();
         RetrofitManager retrofitManager = new RetrofitManager(pubnub);
-        instance = new Leave(pubnub, null, retrofitManager);
+        instance = new Leave(pubnub, null, retrofitManager, new TokenManager());
         wireMockRule.start();
     }
 

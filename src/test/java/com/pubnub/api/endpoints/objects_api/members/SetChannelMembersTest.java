@@ -2,6 +2,7 @@ package com.pubnub.api.endpoints.objects_api.members;
 
 import com.pubnub.api.PubNubException;
 import com.pubnub.api.endpoints.objects_api.BaseObjectApiTest;
+import com.pubnub.api.managers.token_manager.TokenManager;
 import com.pubnub.api.models.consumer.objects_api.member.PNMembers;
 import com.pubnub.api.models.consumer.objects_api.member.PNUUID;
 import com.pubnub.api.models.consumer.objects_api.member.PNUUID.UUIDWithCustom;
@@ -9,6 +10,7 @@ import com.pubnub.api.models.server.objects_api.PatchMemberPayload;
 import com.pubnub.api.models.server.objects_api.EntityArrayEnvelope;
 import com.pubnub.api.services.ChannelMetadataService;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.hamcrest.Matchers;
 import org.jetbrains.annotations.NotNull;
 import org.junit.Before;
 import org.junit.Test;
@@ -28,7 +30,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThat;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -56,6 +58,7 @@ public class SetChannelMembersTest extends BaseObjectApiTest {
                 }));
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     public void setChanelMembersTest() throws PubNubException {
         //given
@@ -64,7 +67,8 @@ public class SetChannelMembersTest extends BaseObjectApiTest {
                 PNUUID.uuid(randomUUIDId()),
                 PNUUID.uuidWithCustom(randomUUIDId(), customObject));
         final SetChannelMembers.Builder setChannelMembersUnderTest = SetChannelMembers.builder(pubNubMock, telemetryManagerMock,
-                retrofitManagerMock);
+                retrofitManagerMock,
+                new TokenManager());
 
         //when
         setChannelMembersUnderTest
@@ -111,7 +115,7 @@ public class SetChannelMembersTest extends BaseObjectApiTest {
     public void getChannelMembersTest() throws PubNubException {
         //given
         final GetChannelMembers.Builder getChannelMembersUnderTest = GetChannelMembers
-                .builder(pubNubMock, telemetryManagerMock, retrofitManagerMock);
+                .builder(pubNubMock, telemetryManagerMock, retrofitManagerMock, new TokenManager());
 
         //when
         getChannelMembersUnderTest
@@ -136,7 +140,7 @@ public class SetChannelMembersTest extends BaseObjectApiTest {
 
         final ManageChannelMembers.Builder manageChannelMembersUnderTest = ManageChannelMembers.builder(pubNubMock,
                 telemetryManagerMock,
-                retrofitManagerMock);
+                retrofitManagerMock, new TokenManager());
 
         //when
         manageChannelMembersUnderTest
@@ -164,7 +168,7 @@ public class SetChannelMembersTest extends BaseObjectApiTest {
                 PNUUID.uuid(randomUUIDId()));
 
         final RemoveChannelMembers.Builder removeChannelMembersUnderTest = RemoveChannelMembers.builder(pubNubMock,
-                telemetryManagerMock, retrofitManagerMock);
+                telemetryManagerMock, retrofitManagerMock, new TokenManager());
 
         //when
         removeChannelMembersUnderTest

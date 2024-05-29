@@ -1,6 +1,7 @@
 package com.pubnub.api;
 
 
+import com.pubnub.api.crypto.CryptoModule;
 import com.pubnub.api.enums.PNHeartbeatNotificationOptions;
 import com.pubnub.api.enums.PNLogVerbosity;
 import com.pubnub.api.enums.PNReconnectionPolicy;
@@ -21,7 +22,8 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.net.Proxy;
 import java.net.ProxySelector;
-import java.util.UUID;
+
+import static com.pubnub.api.builder.PubNubErrorBuilder.PNERROBJ_UUID_NULL_OR_EMPTY;
 
 @Getter
 @Setter
@@ -36,6 +38,7 @@ public class PNConfiguration {
     private static final int SUBSCRIBE_TIMEOUT = 310;
     private static final int CONNECT_TIMEOUT = 5;
     private static final int FILE_MESSAGE_PUBLISH_RETRY_LIMIT = 5;
+    private static final int MAXIMUM_RECONNECTION_RETRIES_DEFAULT = -1; // infinite
 
     @Getter
     private SSLSocketFactory sslSocketFactory;
@@ -93,9 +96,61 @@ public class PNConfiguration {
      */
     private String publishKey;
     private String secretKey;
-    private String cipherKey;
     private String authKey;
-    private String uuid;
+
+
+    /**
+     * @deprecated Use {@link #cryptoModule} instead.
+     */
+    @Deprecated
+    private String cipherKey;
+
+    /**
+     * @deprecated Use {@link #cryptoModule} instead.
+     */
+    @Deprecated
+    private boolean useRandomInitializationVector;
+
+    /**
+     * CryptoModule is responsible for handling encryption and decryption.
+     * If set, all communications to and from PubNub will be encrypted.
+     */
+    private CryptoModule cryptoModule;
+
+    public CryptoModule getCryptoModule() {
+        if (cryptoModule != null) {
+            return cryptoModule;
+        } else {
+            if (cipherKey != null && !cipherKey.isEmpty()) {
+                log.warning("cipherKey is deprecated. Use CryptoModule instead");
+                return CryptoModule.createLegacyCryptoModule(cipherKey, useRandomInitializationVector);
+            } else {
+                return null;
+            }
+        }
+    }
+
+    /**
+     * @deprecated Use {@link #getUserId()} instead.
+     */
+    private volatile String uuid;
+
+    /**
+     * @deprecated Use {@link #setUserId(UserId)} instead.
+     */
+    public void setUuid(@NotNull String uuid) {
+        PubNubUtil.require(!uuid.trim().isEmpty(), PNERROBJ_UUID_NULL_OR_EMPTY);
+        this.uuid = uuid;
+    }
+
+    public UserId getUserId() {
+        return new UserId(this.uuid);
+    }
+
+    public void setUserId(@NotNull UserId userId) {
+        this.uuid = userId.getValue();
+    }
+
     /**
      * If proxies are forcefully caching requests, set to true to allow the client to randomize the subdomain.
      * This configuration is not supported if custom origin is enabled.
@@ -147,7 +202,8 @@ public class PNConfiguration {
     private PNReconnectionPolicy reconnectionPolicy;
 
     /**
-     * Set how many times the reconneciton manager will try to connect before giving app
+     * Set how many times the reconnection manager will try to connect before giving up.
+     * Default is -1 which means to retry infinitely.
      */
     @Setter
     private int maximumReconnectionRetries;
@@ -189,9 +245,6 @@ public class PNConfiguration {
     @Setter
     private Integer maximumMessagesCacheSize;
     @Setter
-    private boolean useRandomInitializationVector;
-
-    @Setter
     private int fileMessagePublishRetryLimit;
 
     /**
@@ -206,14 +259,16 @@ public class PNConfiguration {
     @Deprecated
     @Setter
     private boolean managePresenceListManually;
+
     /**
      * Initialize the PNConfiguration with default values
+     *
+     * @param userId
      */
-    public PNConfiguration() {
+    public PNConfiguration(@NotNull UserId userId) throws PubNubException {
         setPresenceTimeoutWithCustomInterval(PRESENCE_TIMEOUT, 0);
 
-        uuid = "pn-" + UUID.randomUUID().toString();
-
+        this.uuid = userId.getValue();
         nonSubscribeRequestTimeout = NON_SUBSCRIBE_REQUEST_TIMEOUT;
         subscribeTimeout = SUBSCRIBE_TIMEOUT;
         connectTimeout = CONNECT_TIMEOUT;
@@ -231,7 +286,7 @@ public class PNConfiguration {
 
         startSubscriberThread = true;
 
-        maximumReconnectionRetries = -1;
+        maximumReconnectionRetries = MAXIMUM_RECONNECTION_RETRIES_DEFAULT;
 
         dedupOnSubscribe = false;
         suppressLeaveEvents = false;
@@ -239,6 +294,17 @@ public class PNConfiguration {
         useRandomInitializationVector = true;
         fileMessagePublishRetryLimit = FILE_MESSAGE_PUBLISH_RETRY_LIMIT;
         managePresenceListManually = false;
+    }
+
+    /**
+     * Initialize the PNConfiguration with default values
+     *
+     * @param uuid
+     * @deprecated Use {@link PNConfiguration(UserId)} instead.
+     */
+    @Deprecated
+    public PNConfiguration(@NotNull String uuid) throws PubNubException {
+        this(new UserId(uuid));
     }
 
     /**

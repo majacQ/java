@@ -10,6 +10,7 @@ import com.pubnub.api.enums.PNOperationType;
 import com.pubnub.api.managers.MapperManager;
 import com.pubnub.api.managers.RetrofitManager;
 import com.pubnub.api.managers.TelemetryManager;
+import com.pubnub.api.managers.token_manager.TokenManager;
 import com.pubnub.api.models.consumer.presence.PNGetStateResult;
 import com.pubnub.api.models.server.Envelope;
 import lombok.Setter;
@@ -29,8 +30,11 @@ public class GetState extends Endpoint<Envelope<JsonElement>, PNGetStateResult> 
     @Setter
     private String uuid;
 
-    public GetState(PubNub pubnub, TelemetryManager telemetryManager, RetrofitManager retrofit) {
-        super(pubnub, telemetryManager, retrofit);
+    public GetState(PubNub pubnub,
+                    TelemetryManager telemetryManager,
+                    RetrofitManager retrofit,
+                    TokenManager tokenManager) {
+        super(pubnub, telemetryManager, retrofit, tokenManager);
         channels = new ArrayList<>();
         channelGroups = new ArrayList<>();
     }
@@ -63,9 +67,9 @@ public class GetState extends Endpoint<Envelope<JsonElement>, PNGetStateResult> 
 
         String channelCSV = channels.size() > 0 ? PubNubUtil.joinString(channels, ",") : ",";
 
-        String selectedUUID = uuid != null ? uuid : this.getPubnub().getConfiguration().getUuid();
+        String selectedUUID = uuid != null ? uuid : this.getPubnub().getConfiguration().getUserId().getValue();
 
-        return this.getRetrofit().getPresenceService().getState(
+        return this.getRetrofit().getExtendedPresenceService().getState(
                 this.getPubnub().getConfiguration().getSubscribeKey(), channelCSV, selectedUUID, params);
     }
 

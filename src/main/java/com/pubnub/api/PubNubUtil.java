@@ -44,7 +44,7 @@ public class PubNubUtil {
             builder.append(delim);
         }
 
-        return builder.toString().substring(0, builder.toString().length() - 1);
+        return builder.substring(0, builder.toString().length() - delim.length());
 
     }
 
@@ -52,10 +52,10 @@ public class PubNubUtil {
         StringBuilder builder = new StringBuilder();
         for (Long l : val) {
             builder.append(Long.toString(l).toLowerCase());
-            builder.append(",");
+            builder.append(delim);
         }
 
-        return builder.toString().substring(0, builder.toString().length() - 1);
+        return builder.substring(0, builder.toString().length() - delim.length());
 
     }
 
@@ -112,7 +112,7 @@ public class PubNubUtil {
     }
 
     public static String preparePamArguments(Map<String, String> pamArgs) {
-        Set<String> pamKeys = new TreeSet(pamArgs.keySet());
+        Set<String> pamKeys = new TreeSet<>(pamArgs.keySet());
         String stringifiedArguments = "";
         int i = 0;
 
@@ -290,4 +290,9 @@ public class PubNubUtil {
         return collection == null || collection.isEmpty();
     }
 
+    public static void require(boolean value, PubNubError error) {
+        if (!value) {
+            throw PubNubRuntimeException.builder().pubnubError(error).build();
+        }
+    }
 }

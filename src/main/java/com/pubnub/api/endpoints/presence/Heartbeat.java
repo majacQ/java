@@ -1,5 +1,6 @@
 package com.pubnub.api.endpoints.presence;
 
+import com.google.gson.JsonElement;
 import com.pubnub.api.PubNub;
 import com.pubnub.api.PubNubException;
 import com.pubnub.api.PubNubUtil;
@@ -8,6 +9,7 @@ import com.pubnub.api.endpoints.Endpoint;
 import com.pubnub.api.enums.PNOperationType;
 import com.pubnub.api.managers.RetrofitManager;
 import com.pubnub.api.managers.TelemetryManager;
+import com.pubnub.api.managers.token_manager.TokenManager;
 import com.pubnub.api.models.server.Envelope;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -19,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 @Accessors(chain = true, fluent = true)
-public class Heartbeat extends Endpoint<Envelope, Boolean> {
+public class Heartbeat extends Endpoint<Envelope<JsonElement>, Boolean> {
 
     @Setter
     private List<String> channels;
@@ -28,8 +30,8 @@ public class Heartbeat extends Endpoint<Envelope, Boolean> {
     @Setter
     private Object state;
 
-    public Heartbeat(PubNub pubnub, TelemetryManager telemetryManager, RetrofitManager retrofit) {
-        super(pubnub, telemetryManager, retrofit);
+    public Heartbeat(PubNub pubnub, TelemetryManager telemetryManager, RetrofitManager retrofit, TokenManager tokenManager) {
+        super(pubnub, telemetryManager, retrofit, tokenManager);
         channels = new ArrayList<>();
         channelGroups = new ArrayList<>();
     }
@@ -55,7 +57,7 @@ public class Heartbeat extends Endpoint<Envelope, Boolean> {
     }
 
     @Override
-    protected Call<Envelope> doWork(Map<String, String> params) throws PubNubException {
+    protected Call<Envelope<JsonElement>> doWork(Map<String, String> params) throws PubNubException {
         params.put("heartbeat", String.valueOf(this.getPubnub().getConfiguration().getPresenceTimeout()));
 
         if (channelGroups.size() > 0) {
@@ -82,7 +84,7 @@ public class Heartbeat extends Endpoint<Envelope, Boolean> {
     }
 
     @Override
-    protected Boolean createResponse(Response<Envelope> input) throws PubNubException {
+    protected Boolean createResponse(Response<Envelope<JsonElement>> input) throws PubNubException {
         return true;
     }
 

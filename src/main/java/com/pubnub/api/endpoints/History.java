@@ -1,7 +1,6 @@
 package com.pubnub.api.endpoints;
 
 import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import com.pubnub.api.PubNub;
 import com.pubnub.api.PubNubException;
 import com.pubnub.api.builder.PubNubErrorBuilder;
@@ -9,11 +8,13 @@ import com.pubnub.api.enums.PNOperationType;
 import com.pubnub.api.managers.MapperManager;
 import com.pubnub.api.managers.RetrofitManager;
 import com.pubnub.api.managers.TelemetryManager;
+import com.pubnub.api.managers.token_manager.TokenManager;
 import com.pubnub.api.models.consumer.history.PNHistoryItemResult;
 import com.pubnub.api.models.consumer.history.PNHistoryResult;
-import com.pubnub.api.vendor.Crypto;
+import com.pubnub.api.workers.SubscribeMessageProcessor;
 import lombok.Setter;
 import lombok.experimental.Accessors;
+import lombok.extern.slf4j.Slf4j;
 import retrofit2.Call;
 import retrofit2.Response;
 
@@ -23,6 +24,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Accessors(chain = true, fluent = true)
 public class History extends Endpoint<JsonElement, PNHistoryResult> {
     private static final int MAX_COUNT = 100;
@@ -41,8 +43,11 @@ public class History extends Endpoint<JsonElement, PNHistoryResult> {
     @Setter
     private Boolean includeMeta;
 
-    public History(PubNub pubnub, TelemetryManager telemetryManager, RetrofitManager retrofit) {
-        super(pubnub, telemetryManager, retrofit);
+    public History(PubNub pubnub,
+                   TelemetryManager telemetryManager,
+                   RetrofitManager retrofit,
+                   TokenManager tokenManager) {
+        super(pubnub, telemetryManager, retrofit, tokenManager);
     }
 
     @Override
@@ -126,7 +131,17 @@ public class History extends Endpoint<JsonElement, PNHistoryResult> {
                     JsonElement message;
 
                     if (includeTimetoken || includeMeta) {
-                        message = processMessage(mapper.getField(historyEntry, "message"));
+                        JsonElement messageElement = mapper.getField(historyEntry, "message");
+                        try {
+                            message = SubscribeMessageProcessor.tryDecryptMessage(messageElement, getPubnub().getCryptoModule(), mapper);
+                        } catch (PubNubException e) {
+                            if (e.getPubnubError() == PubNubErrorBuilder.PNERROBJ_PNERR_CRYPTO_IS_CONFIGURED_BUT_MESSAGE_IS_NOT_ENCRYPTED) {
+                                message = messageElement;
+                                historyItem.error(e.getPubnubError());
+                            } else {
+                                throw e;
+                            }
+                        }
                         if (includeTimetoken) {
                             historyItem.timetoken(mapper.elementToLong(historyEntry, "timetoken"));
                         }
@@ -134,7 +149,16 @@ public class History extends Endpoint<JsonElement, PNHistoryResult> {
                             historyItem.meta(mapper.getField(historyEntry, "meta"));
                         }
                     } else {
-                        message = processMessage(historyEntry);
+                        try {
+                            message = SubscribeMessageProcessor.tryDecryptMessage(historyEntry, getPubnub().getCryptoModule(), mapper);
+                        } catch (PubNubException e) {
+                            if (e.getPubnubError() == PubNubErrorBuilder.PNERROBJ_PNERR_CRYPTO_IS_CONFIGURED_BUT_MESSAGE_IS_NOT_ENCRYPTED) {
+                                message = historyEntry;
+                                historyItem.error(e.getPubnubError());
+                            } else {
+                                throw e;
+                            }
+                        }
                     }
 
                     historyItem.entry(message);
@@ -147,7 +171,6 @@ public class History extends Endpoint<JsonElement, PNHistoryResult> {
                         .jso(input.body())
                         .build();
             }
-
 
             historyData.messages(messages);
         }
@@ -164,36 +187,4 @@ public class History extends Endpoint<JsonElement, PNHistoryResult> {
     protected boolean isAuthRequired() {
         return true;
     }
-
-    private JsonElement processMessage(JsonElement message) throws PubNubException {
-        // if we do not have a crypto key, there is no way to process the node; let's return.
-        if (this.getPubnub().getConfiguration().getCipherKey() == null) {
-            return message;
-        }
-
-        Crypto crypto = new Crypto(this.getPubnub().getConfiguration().getCipherKey(), this.getPubnub().getConfiguration().isUseRandomInitializationVector());
-        MapperManager mapper = getPubnub().getMapper();
-        String inputText;
-        String outputText;
-        JsonElement outputObject;
-
-        if (mapper.isJsonObject(message) && mapper.hasField(message, "pn_other")) {
-            inputText = mapper.elementToString(message, "pn_other");
-        } else {
-            inputText = mapper.elementToString(message);
-        }
-
-        outputText = crypto.decrypt(inputText);
-        outputObject = this.getPubnub().getMapper().fromJson(outputText, JsonElement.class);
-
-        // inject the decoded response into the payload
-        if (mapper.isJsonObject(message) && mapper.hasField(message, "pn_other")) {
-            JsonObject objectNode = mapper.getAsObject(message);
-            mapper.putOnObject(objectNode, "pn_other", outputObject);
-            outputObject = objectNode;
-        }
-
-        return outputObject;
-    }
-
 }

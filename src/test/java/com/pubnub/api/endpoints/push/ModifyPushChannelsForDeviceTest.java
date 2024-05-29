@@ -21,12 +21,17 @@ import com.pubnub.api.endpoints.TestHarness;
 import com.pubnub.api.enums.PNOperationType;
 import com.pubnub.api.enums.PNPushType;
 import com.pubnub.api.models.consumer.PNStatus;
+import com.pubnub.api.models.consumer.access_manager.v3.ChannelGrant;
+import com.pubnub.api.models.consumer.access_manager.v3.ChannelGroupGrant;
+import com.pubnub.api.models.consumer.access_manager.v3.PNGrantTokenResult;
+import com.pubnub.api.models.consumer.access_manager.v3.UUIDGrant;
 import com.pubnub.api.models.consumer.push.PNPushAddChannelResult;
 import com.pubnub.api.models.consumer.push.PNPushRemoveAllChannelsResult;
 import com.pubnub.api.models.consumer.push.PNPushRemoveChannelResult;
 
 import org.awaitility.Awaitility;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -34,6 +39,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -49,7 +55,7 @@ public class ModifyPushChannelsForDeviceTest extends TestHarness {
     private RemoveChannelsFromPush instanceRemove;
 
     @Before
-    public void beforeEach() throws IOException {
+    public void beforeEach() throws IOException, PubNubException {
         pubnub = this.createPubNubInstance();
         instance = pubnub.removeAllPushNotificationsFromDeviceWithPushToken();
         instanceAdd = pubnub.addPushNotificationsOnChannels();
@@ -79,6 +85,7 @@ public class ModifyPushChannelsForDeviceTest extends TestHarness {
         assertFalse(requests.get(0).queryParameter("topic").isPresent());
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     public void testGoogleSuccessSyncRemoveAll() throws PubNubException, InterruptedException {
         stubFor(get(urlPathEqualTo("/v1/push/sub-key/mySubscribeKey/devices/niceDevice/remove"))
@@ -237,6 +244,7 @@ public class ModifyPushChannelsForDeviceTest extends TestHarness {
         assertFalse(requests.get(0).queryParameter("topic").isPresent());
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     public void testAddGoogleSuccessSync() throws PubNubException, InterruptedException {
 
@@ -445,6 +453,7 @@ public class ModifyPushChannelsForDeviceTest extends TestHarness {
         assertFalse(requests.get(0).queryParameter("topic").isPresent());
     }
 
+    @SuppressWarnings("deprecation")
     @Test
     public void testRemoveGoogleSuccessSync() throws PubNubException, InterruptedException {
 

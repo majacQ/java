@@ -1,10 +1,14 @@
 package com.pubnub.api.integration;
 
+import com.pubnub.api.PNConfiguration;
 import com.pubnub.api.PubNub;
 import com.pubnub.api.PubNubException;
+import com.pubnub.api.builder.PubNubErrorBuilder;
+import com.pubnub.api.crypto.CryptoModule;
 import com.pubnub.api.integration.util.BaseIntegrationTest;
 import com.pubnub.api.integration.util.RandomGenerator;
 import com.pubnub.api.models.consumer.PNPublishResult;
+import com.pubnub.api.models.consumer.history.HistoryMessageType;
 import com.pubnub.api.models.consumer.history.PNFetchMessageItem;
 import com.pubnub.api.models.consumer.history.PNFetchMessagesResult;
 import com.pubnub.api.models.consumer.history.PNHistoryItemResult;
@@ -312,12 +316,10 @@ public class HistoryIntegrationTest extends BaseIntegrationTest {
     @Test
     public void testHistorySingleChannel_IncludeAll_Crypto() throws PubNubException {
         final String expectedCipherKey = random();
-        pubNub.getConfiguration().setCipherKey(expectedCipherKey);
+        pubNub.getConfiguration().setCryptoModule(CryptoModule.createLegacyCryptoModule(expectedCipherKey, true));
 
         final PubNub observer = getPubNub();
-        observer.getConfiguration().setCipherKey(expectedCipherKey);
-
-        assertEquals(pubNub.getConfiguration().getCipherKey(), observer.getConfiguration().getCipherKey());
+        observer.getConfiguration().setCryptoModule(CryptoModule.createLegacyCryptoModule(expectedCipherKey, true));
 
         final String expectedChannelName = random();
         final int expectedMessageCount = 10;
@@ -341,14 +343,72 @@ public class HistoryIntegrationTest extends BaseIntegrationTest {
     }
 
     @Test
-    public void testFetchSingleChannel_IncludeAll_Crypto() throws PubNubException {
+    public void testReadUnencryptedMessage_FromHistory_WithCrypto() throws PubNubException {
         final String expectedCipherKey = random();
-        pubNub.getConfiguration().setCipherKey(expectedCipherKey);
+
+        final PNConfiguration config = getBasicPnConfiguration();
+        config.setCryptoModule(CryptoModule.createLegacyCryptoModule(expectedCipherKey, true));;
+        final PubNub observer = getPubNub(config);
+
+        final String expectedChannelName = random();
+        final int expectedMessageCount = 10;
+
+        assertEquals(expectedMessageCount,
+                publishMixed(pubNub, expectedMessageCount, expectedChannelName).size());
+
+        final PNHistoryResult historyResult = observer.history()
+                .channel(expectedChannelName)
+                .includeTimetoken(true)
+                .includeMeta(true)
+                .sync();
+
+        assert historyResult != null;
+        for (PNHistoryItemResult message : historyResult.getMessages()) {
+            assertNotNull(message.getEntry());
+            assertNotNull(message.getTimetoken());
+            assertNotNull(message.getMeta());
+            assertTrue(message.getEntry().toString().contains("_msg"));
+            assertEquals(message.getError(), PubNubErrorBuilder.PNERROBJ_PNERR_CRYPTO_IS_CONFIGURED_BUT_MESSAGE_IS_NOT_ENCRYPTED);
+        }
+    }
+
+    @Test
+    public void testReadUnencryptedMessage_FetchMessages_WithCrypto() throws PubNubException {
+        final String expectedCipherKey = random();
 
         final PubNub observer = getPubNub();
-        observer.getConfiguration().setCipherKey(expectedCipherKey);
+        observer.getConfiguration().setCryptoModule(CryptoModule.createLegacyCryptoModule(expectedCipherKey, true));
 
-        assertEquals(pubNub.getConfiguration().getCipherKey(), observer.getConfiguration().getCipherKey());
+        final String expectedChannelName = random();
+        final int expectedMessageCount = 10;
+
+        assertEquals(expectedMessageCount,
+                publishMixed(pubNub, expectedMessageCount, expectedChannelName).size());
+
+        final PNFetchMessagesResult fetchMessagesResult = observer.fetchMessages()
+                .channels(Collections.singletonList(expectedChannelName))
+                .maximumPerChannel(25)
+                .includeMeta(true)
+                .sync();
+
+        assert fetchMessagesResult != null;
+        for (PNFetchMessageItem messageItem : fetchMessagesResult.getChannels().get(expectedChannelName)) {
+            assertNotNull(messageItem.getMessage());
+            assertNotNull(messageItem.getTimetoken());
+            assertNotNull(messageItem.getMeta());
+            assertTrue(messageItem.getMessage().toString().contains("_msg"));
+            assertEquals(messageItem.getError(), PubNubErrorBuilder.PNERROBJ_PNERR_CRYPTO_IS_CONFIGURED_BUT_MESSAGE_IS_NOT_ENCRYPTED);
+        }
+    }
+
+    @Test
+    public void testFetchSingleChannel_IncludeAll_Crypto() throws PubNubException {
+        final String expectedCipherKey = random();
+        pubNub.getConfiguration().setCryptoModule(CryptoModule.createLegacyCryptoModule(expectedCipherKey, false));
+
+        final PubNub observer = getPubNub();
+        observer.getConfiguration().setCryptoModule(CryptoModule.createLegacyCryptoModule(expectedCipherKey, false));
+
 
         final String expectedChannelName = random();
         final int expectedMessageCount = 10;
@@ -379,7 +439,7 @@ public class HistoryIntegrationTest extends BaseIntegrationTest {
         final PubNub observer = getPubNub();
         observer.getConfiguration().setCipherKey(expectedCipherKey);
 
-        assertEquals(pubNub.getConfiguration().getCipherKey(), observer.getConfiguration().getCipherKey());
+        assertEquals(pubNub.getConfiguration().getCipherKey(), observer.getConfiguration().getCipherKey()); //todo
 
         final String expectedChannelName = random();
         final int expectedMessageCount = 10;
@@ -600,5 +660,24 @@ public class HistoryIntegrationTest extends BaseIntegrationTest {
         assertNotNull(v3HistoryWithActionsResult.getChannels().get(channel).get(0).getMeta());
 
         // three responses from three different APIs will return a non-null meta field
+    }
+
+    @Test
+    public void testFetchSingleChannel_includeMessageTypeIsFalse() throws PubNubException {
+        final String expectedChannelName = random();
+
+        publishMixed(pubNub, 10, expectedChannelName);
+
+        final PNFetchMessagesResult fetchMessagesResult = pubNub.fetchMessages()
+                .channels(Collections.singletonList(expectedChannelName))
+                .includeMessageType(false)
+                .sync();
+
+        pause(3);
+
+        assert fetchMessagesResult != null;
+        for (PNFetchMessageItem messageItem : fetchMessagesResult.getChannels().get(expectedChannelName)) {
+            assertEquals(null ,messageItem.getMessageType());
+        }
     }
 }

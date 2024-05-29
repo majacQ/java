@@ -1,35 +1,28 @@
 package com.pubnub.api.managers;
 
-
 import com.pubnub.api.PNConfiguration;
 import com.pubnub.api.PubNub;
+import com.pubnub.api.callbacks.SubscribeCallback;
 import com.pubnub.api.endpoints.vendor.AppEngineFactory;
 import com.pubnub.api.enums.PNLogVerbosity;
+import com.pubnub.api.enums.PNStatusCategory;
 import com.pubnub.api.interceptors.SignatureInterceptor;
-import com.pubnub.api.services.AccessManagerService;
-import com.pubnub.api.services.ChannelGroupService;
-import com.pubnub.api.services.ChannelMetadataService;
-import com.pubnub.api.services.FilesService;
-import com.pubnub.api.services.HistoryService;
-import com.pubnub.api.services.MessageActionService;
-import com.pubnub.api.services.PresenceService;
-import com.pubnub.api.services.PublishService;
-import com.pubnub.api.services.PushService;
-import com.pubnub.api.services.S3Service;
-import com.pubnub.api.services.SignalService;
-import com.pubnub.api.services.SubscribeService;
-import com.pubnub.api.services.TimeService;
-import com.pubnub.api.services.UUIDMetadataService;
+import com.pubnub.api.models.consumer.PNStatus;
+import com.pubnub.api.services.*;
 import lombok.Getter;
+import okhttp3.Dispatcher;
 import okhttp3.OkHttpClient;
 import okhttp3.logging.HttpLoggingInterceptor;
+import org.jetbrains.annotations.NotNull;
 import retrofit2.Retrofit;
 
 import java.util.Collections;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public class RetrofitManager {
+
 
     private PubNub pubnub;
 
@@ -38,6 +31,7 @@ public class RetrofitManager {
     private OkHttpClient transactionClientInstance;
     private OkHttpClient subscriptionClientInstance;
     private OkHttpClient noSignatureClientInstance;
+    private OkHttpClient presenceClientInstance;
 
 
     // services
@@ -67,15 +61,18 @@ public class RetrofitManager {
     private MessageActionService messageActionService;
     @Getter
     private final FilesService filesService;
-
     @Getter
     private final S3Service s3Service;
+    @Getter
+    private final ExtendedPresenceService extendedPresenceService;
     @Getter
     private final Retrofit transactionInstance;
     @Getter
     private final Retrofit subscriptionInstance;
     @Getter
     private final Retrofit noSignatureInstance;
+    @Getter
+    private final Retrofit presenceInstance;
 
     public RetrofitManager(PubNub pubNubInstance) {
         this.pubnub = pubNubInstance;
@@ -88,7 +85,19 @@ public class RetrofitManager {
                             this.pubnub.getConfiguration().getNonSubscribeRequestTimeout(),
                             this.pubnub.getConfiguration().getConnectTimeout()
                     ).addInterceptor(this.signatureInterceptor)
-                    .retryOnConnectionFailure(false)
+                            .retryOnConnectionFailure(false)
+            );
+
+            Dispatcher dispatcher = new Dispatcher();
+            dispatcher.setMaxRequestsPerHost(1);
+
+            this.presenceClientInstance = createOkHttpClient(
+                    prepareOkHttpClient(
+                            this.pubnub.getConfiguration().getNonSubscribeRequestTimeout(),
+                            this.pubnub.getConfiguration().getConnectTimeout()
+                    ).addInterceptor(this.signatureInterceptor)
+                            .retryOnConnectionFailure(false)
+                            .dispatcher(dispatcher)
             );
 
             this.subscriptionClientInstance = createOkHttpClient(
@@ -96,7 +105,7 @@ public class RetrofitManager {
                             this.pubnub.getConfiguration().getSubscribeTimeout(),
                             this.pubnub.getConfiguration().getConnectTimeout()
                     ).addInterceptor(this.signatureInterceptor)
-                    .retryOnConnectionFailure(false)
+                            .retryOnConnectionFailure(false)
             );
 
             this.noSignatureClientInstance = createOkHttpClient(
@@ -104,13 +113,32 @@ public class RetrofitManager {
                             this.pubnub.getConfiguration().getConnectTimeout()
                     ).retryOnConnectionFailure(false)
             );
+
+            //Because our users can think that PNStatusCategory.PNReconnectedCategory is about the whole
+            //PubNub library and not only about the subscription loop just for safety we're going to
+            //evict possibly broken connections for transactional calls
+            this.pubnub.addListener(new SubscribeCallback.BaseSubscribeCallback() {
+                @Override
+                public void status(@NotNull final PubNub pubnub, @NotNull final PNStatus pnStatus) {
+                    if (pnStatus.getCategory() == PNStatusCategory.PNReconnectedCategory) {
+                        //On Android this callback is run on main thread therefore this thread is necessary
+                        Executors.newSingleThreadExecutor().execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                transactionClientInstance.connectionPool().evictAll();
+                            }
+                        });
+                    }
+                }
+            });
         }
 
         this.transactionInstance = createRetrofit(this.transactionClientInstance);
         this.subscriptionInstance = createRetrofit(this.subscriptionClientInstance);
         this.noSignatureInstance = createRetrofit(this.noSignatureClientInstance);
+        this.presenceInstance = createRetrofit(this.presenceClientInstance);
 
-        this.presenceService = transactionInstance.create(PresenceService.class);
+        this.presenceService = presenceInstance.create(PresenceService.class);
         this.historyService = transactionInstance.create(HistoryService.class);
         this.pushService = transactionInstance.create(PushService.class);
         this.accessManagerService = transactionInstance.create(AccessManagerService.class);
@@ -124,6 +152,8 @@ public class RetrofitManager {
         this.messageActionService = transactionInstance.create(MessageActionService.class);
         this.filesService = transactionInstance.create(FilesService.class);
         this.s3Service = noSignatureInstance.create(S3Service.class);
+        this.extendedPresenceService = transactionInstance.create(ExtendedPresenceService.class);
+
     }
 
     private OkHttpClient.Builder prepareOkHttpClient(int requestTimeout, int connectTimeOut) {

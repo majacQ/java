@@ -3,16 +3,17 @@ package com.pubnub.api.endpoints.files;
 import com.pubnub.api.PubNub;
 import com.pubnub.api.PubNubException;
 import com.pubnub.api.builder.PubNubErrorBuilder;
+import com.pubnub.api.crypto.CryptoModule;
+import com.pubnub.api.endpoints.BuilderSteps.ChannelStep;
 import com.pubnub.api.endpoints.Endpoint;
 import com.pubnub.api.endpoints.files.requiredparambuilder.ChannelFileNameFileIdBuilder;
-import com.pubnub.api.endpoints.BuilderSteps.ChannelStep;
 import com.pubnub.api.endpoints.files.requiredparambuilder.FilesBuilderSteps.FileIdStep;
 import com.pubnub.api.endpoints.files.requiredparambuilder.FilesBuilderSteps.FileNameStep;
 import com.pubnub.api.enums.PNOperationType;
 import com.pubnub.api.managers.RetrofitManager;
 import com.pubnub.api.managers.TelemetryManager;
+import com.pubnub.api.managers.token_manager.TokenManager;
 import com.pubnub.api.models.consumer.files.PNDownloadFileResult;
-import com.pubnub.api.vendor.FileEncryptionUtil;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import okhttp3.ResponseBody;
@@ -24,7 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static com.pubnub.api.vendor.FileEncryptionUtil.effectiveCipherKey;
+import static com.pubnub.api.vendor.FileEncryptionUtil.effectiveCryptoModule;
 
 @Accessors(chain = true, fluent = true)
 public class DownloadFile extends Endpoint<ResponseBody, PNDownloadFileResult> {
@@ -40,8 +41,9 @@ public class DownloadFile extends Endpoint<ResponseBody, PNDownloadFileResult> {
                         String fileId,
                         PubNub pubnubInstance,
                         TelemetryManager telemetry,
-                        RetrofitManager retrofitInstance) {
-        super(pubnubInstance, telemetry, retrofitInstance);
+                        RetrofitManager retrofitInstance,
+                        TokenManager tokenManager) {
+        super(pubnubInstance, telemetry, retrofitInstance, tokenManager);
         this.channel = channel;
         this.fileName = fileName;
         this.fileId = fileId;
@@ -85,11 +87,12 @@ public class DownloadFile extends Endpoint<ResponseBody, PNDownloadFileResult> {
                     .pubnubError(PubNubErrorBuilder.PNERROBJ_INTERNAL_ERROR)
                     .build();
         }
-        String effectiveCipherKey = effectiveCipherKey(getPubnub(), cipherKey);
-        if (effectiveCipherKey == null) {
-            return new PNDownloadFileResult(fileName, input.body().byteStream());
+        CryptoModule cryptoModule = effectiveCryptoModule(getPubnub(), cipherKey);
+        InputStream byteStream = input.body().byteStream();
+        if (cryptoModule == null) {
+            return new PNDownloadFileResult(fileName, byteStream);
         } else {
-            InputStream decryptedByteStream = FileEncryptionUtil.decrypt(effectiveCipherKey, input.body().byteStream());
+            InputStream decryptedByteStream = cryptoModule.decryptStream(byteStream);
             return new PNDownloadFileResult(fileName, decryptedByteStream);
         }
     }
@@ -112,8 +115,9 @@ public class DownloadFile extends Endpoint<ResponseBody, PNDownloadFileResult> {
 
     public static Builder builder(PubNub pubNub,
                                   TelemetryManager telemetryManager,
-                                  RetrofitManager retrofitManager) {
+                                  RetrofitManager retrofitManager,
+                                  TokenManager tokenManager) {
         return new Builder(ChannelFileNameFileIdBuilder.create((channel, fileName, fileId) ->
-                new DownloadFile(channel, fileName, fileId, pubNub, telemetryManager, retrofitManager)));
+                new DownloadFile(channel, fileName, fileId, pubNub, telemetryManager, retrofitManager, tokenManager)));
     }
 }

@@ -22,8 +22,7 @@ public final class PubNubErrorBuilder {
     public static final int PNERR_CONNECT_EXCEPTION = 102;
 
     /**
-     * Please check network connectivity. Please contact support with error
-     * details if issue persists.
+     * Please check network connectivity.
      */
     public static final int PNERR_HTTP_ERROR = 103;
 
@@ -346,6 +345,41 @@ public final class PubNubErrorBuilder {
      */
     public static final int PNERR_PAYLOAD_TOO_LARGE = 167;
 
+    /**
+     * Token missing
+     */
+    public static final int PNERR_TOKEN_MISSING = 168;
+
+    /**
+     * UUID can't be null nor empty
+     */
+    public static final int PNERR_UUID_NULL_OR_EMPTY = 169;
+
+    /**
+     * UserId can't be null nor empty
+     */
+    public static final int PNERR_USERID_NULL_OR_EMPTY = 170;
+
+    /**
+     * SpaceId can't be null nor empty
+     */
+    public static final int PNERR_SPACEID_NULL_OR_EMPTY = 171;
+
+    /**
+     * State must be a JSON object.
+     */
+    public static final int PNERR_STATE_MUST_BE_JSON_OBJECT = 172;
+
+    /**
+     * UserId can't be different from UserId in configuration when flag withHeartbeat is set to true.
+     */
+    public static final int PNERR_USERID_CAN_NOT_BE_DIFFERENT = 173;
+
+    /**
+     * Used when crypto is configured but the message was not encrypted.
+     */
+    public static final int PNERR_CRYPTO_IS_CONFIGURED_BUT_MESSAGE_IS_NOT_ENCRYPTED = 174;
+
     // Error Objects
     public static final PubNubError PNERROBJ_TIMEOUT = PubNubError.builder()
             .errorCode(PNERR_TIMEOUT)
@@ -529,6 +563,11 @@ public final class PubNubErrorBuilder {
             .message("State Missing.")
             .build();
 
+    public static final PubNubError PNERROBJ_STATE_MUST_BE_JSON_OBJECT = PubNubError.builder()
+            .errorCode(PNERR_STATE_MUST_BE_JSON_OBJECT)
+            .message("State must be a JSON object.")
+            .build();
+
     public static final PubNubError PNERROBJ_MESSAGE_MISSING = PubNubError.builder()
             .errorCode(PNERR_MESSAGE_MISSING)
             .message("Message Missing.")
@@ -688,6 +727,36 @@ public final class PubNubErrorBuilder {
     public static final PubNubError PNERROBJ_PAYLOAD_TOO_LARGE = PubNubError.builder()
             .errorCode(PNERR_PAYLOAD_TOO_LARGE)
             .message("Payload too large.")
+            .build();
+
+    public static final PubNubError PNERROBJ_TOKEN_MISSING = PubNubError.builder()
+            .errorCode(PNERR_TOKEN_MISSING)
+            .message("Token missing.")
+            .build();
+
+    public static final PubNubError PNERROBJ_UUID_NULL_OR_EMPTY = PubNubError.builder()
+            .errorCode(PNERR_UUID_NULL_OR_EMPTY)
+            .message("Uuid can't be null nor empty.")
+            .build();
+
+    public static final PubNubError PNERROBJ_USERID_NULL_OR_EMPTY = PubNubError.builder()
+            .errorCode(PNERR_USERID_NULL_OR_EMPTY)
+            .message("UserId can't be null nor empty.")
+            .build();
+
+    public static final PubNubError PNERROBJ_SPACEID_NULL_OR_EMPTY = PubNubError.builder()
+            .errorCode(PNERR_SPACEID_NULL_OR_EMPTY)
+            .message("SpaceId can't be null nor empty.")
+            .build();
+
+    public static final PubNubError PNERROBJ_USERID_CAN_NOT_BE_DIFFERENT_FROM_IN_CONFIGURATION_WHEN_WITHHEARTBEAT_TRUE = PubNubError.builder()
+            .errorCode(PNERR_USERID_CAN_NOT_BE_DIFFERENT)
+            .message("UserId can't be different from UserId in configuration when flag withHeartbeat is set to true.")
+            .build();
+
+    public static final PubNubError PNERROBJ_PNERR_CRYPTO_IS_CONFIGURED_BUT_MESSAGE_IS_NOT_ENCRYPTED = PubNubError.builder()
+            .errorCode(PNERR_CRYPTO_IS_CONFIGURED_BUT_MESSAGE_IS_NOT_ENCRYPTED)
+            .message("Message decryption failed using the current crypto configuration.")
             .build();
 
     private PubNubErrorBuilder() {

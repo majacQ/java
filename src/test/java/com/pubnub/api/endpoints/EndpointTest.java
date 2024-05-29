@@ -3,14 +3,11 @@ package com.pubnub.api.endpoints;
 import com.pubnub.api.PubNub;
 import com.pubnub.api.PubNubException;
 import com.pubnub.api.builder.PubNubErrorBuilder;
-import com.pubnub.api.callbacks.PNCallback;
 import com.pubnub.api.enums.PNOperationType;
-import com.pubnub.api.models.consumer.PNStatus;
+import com.pubnub.api.managers.token_manager.TokenManager;
 import okhttp3.MediaType;
 import okhttp3.Request;
 import okhttp3.ResponseBody;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -30,7 +27,7 @@ public class EndpointTest extends TestHarness {
     private PubNub pubnub;
 
     @Before
-    public void beforeEach() throws IOException {
+    public void beforeEach() throws IOException, PubNubException {
         pubnub = this.createPubNubInstance();
         pubnub.getConfiguration().setIncludeInstanceIdentifier(true);
     }
@@ -43,7 +40,7 @@ public class EndpointTest extends TestHarness {
 
     @Test
     public void testBaseParams() throws PubNubException {
-        Endpoint<Object, Object> endpoint = new Endpoint<Object, Object>(pubnub, null, null) {
+        Endpoint<Object, Object> endpoint = new Endpoint<Object, Object>(pubnub, null, null, new TokenManager()) {
 
             @Override
             protected List<String> getAffectedChannels() {
@@ -92,7 +89,7 @@ public class EndpointTest extends TestHarness {
     @Test
     public void payloadTooLargeTest_Sync() {
         Endpoint<Object, Object> endpoint = testEndpoint(call(Response.error(HttpURLConnection.HTTP_ENTITY_TOO_LARGE,
-                ResponseBody.create(MediaType.get("application/json"), "{}"))));
+                ResponseBody.create("{}", MediaType.get("application/json")))));
 
         try {
             endpoint.sync();
@@ -105,7 +102,7 @@ public class EndpointTest extends TestHarness {
     @Test
     public void payloadTooLargeTest_Async() {
         Endpoint<Object, Object> endpoint = testEndpoint(call(Response.error(HttpURLConnection.HTTP_ENTITY_TOO_LARGE,
-                ResponseBody.create(MediaType.get("application/json"), "{}"))));
+                ResponseBody.create("{}", MediaType.get("application/json")))));
 
         endpoint.async((result, status) -> {
             if (status.isError()) {
@@ -117,7 +114,7 @@ public class EndpointTest extends TestHarness {
     }
 
     private Endpoint<Object, Object> testEndpoint(Call<Object> call) {
-        return new Endpoint<Object, Object>(pubnub, null, null) {
+        return new Endpoint<Object, Object>(pubnub, null, null, new TokenManager()) {
 
             @Override
             protected List<String> getAffectedChannels() {

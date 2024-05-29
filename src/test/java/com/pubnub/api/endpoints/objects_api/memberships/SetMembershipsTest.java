@@ -2,6 +2,7 @@ package com.pubnub.api.endpoints.objects_api.memberships;
 
 import com.pubnub.api.PubNubException;
 import com.pubnub.api.endpoints.objects_api.BaseObjectApiTest;
+import com.pubnub.api.managers.token_manager.TokenManager;
 import com.pubnub.api.models.consumer.objects_api.membership.PNChannelMembership;
 import com.pubnub.api.models.consumer.objects_api.membership.PNMembership;
 import com.pubnub.api.models.server.objects_api.PatchMembershipPayload;
@@ -27,7 +28,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThat;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -53,6 +54,7 @@ public class SetMembershipsTest extends BaseObjectApiTest {
                 }));
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     public void setMembershipTest() throws PubNubException {
         //given
@@ -61,7 +63,7 @@ public class SetMembershipsTest extends BaseObjectApiTest {
                 PNChannelMembership.channel(randomChannelId()),
                 PNChannelMembership.channelWithCustom(randomChannelId(), customObject));
         final SetMemberships.Builder setMembershipsUnderTest = SetMemberships.builder(pubNubMock,
-                telemetryManagerMock, retrofitManagerMock);
+                telemetryManagerMock, retrofitManagerMock, new TokenManager());
 
         //when
         setMembershipsUnderTest
@@ -98,7 +100,7 @@ public class SetMembershipsTest extends BaseObjectApiTest {
     public void getMembershipTest() throws PubNubException {
         //given
         final GetMemberships getMembershipsUnderTest = GetMemberships.create(pubNubMock,
-                telemetryManagerMock, retrofitManagerMock);
+                telemetryManagerMock, retrofitManagerMock, new TokenManager());
 
         //when
         getMembershipsUnderTest
@@ -122,7 +124,7 @@ public class SetMembershipsTest extends BaseObjectApiTest {
 
         final ManageMemberships.Builder manageMembershipsUnderTest = ManageMemberships.builder(pubNubMock,
                 telemetryManagerMock,
-                retrofitManagerMock);
+                retrofitManagerMock, new TokenManager());
 
         //when
         manageMembershipsUnderTest
@@ -150,7 +152,7 @@ public class SetMembershipsTest extends BaseObjectApiTest {
                 PNChannelMembership.channel(randomChannelId()));
 
         final RemoveMemberships.Builder removeMembershipsUnderTest = RemoveMemberships
-                .builder(pubNubMock, telemetryManagerMock, retrofitManagerMock);
+                .builder(pubNubMock, telemetryManagerMock, retrofitManagerMock, new TokenManager());
 
         //when
         removeMembershipsUnderTest

@@ -11,6 +11,7 @@ import com.pubnub.api.enums.PNOperationType;
 import com.pubnub.api.managers.MapperManager;
 import com.pubnub.api.managers.RetrofitManager;
 import com.pubnub.api.managers.TelemetryManager;
+import com.pubnub.api.managers.token_manager.TokenManager;
 import com.pubnub.api.models.consumer.presence.PNHereNowChannelData;
 import com.pubnub.api.models.consumer.presence.PNHereNowOccupantData;
 import com.pubnub.api.models.consumer.presence.PNHereNowResult;
@@ -33,8 +34,11 @@ public class HereNow extends Endpoint<Envelope<JsonElement>, PNHereNowResult> {
     @Setter
     private Boolean includeUUIDs;
 
-    public HereNow(PubNub pubnubInstance, TelemetryManager telemetryManager, RetrofitManager retrofit) {
-        super(pubnubInstance, telemetryManager, retrofit);
+    public HereNow(PubNub pubnubInstance,
+                   TelemetryManager telemetryManager,
+                   RetrofitManager retrofit,
+                   TokenManager tokenManager) {
+        super(pubnubInstance, telemetryManager, retrofit, tokenManager);
         channels = new ArrayList<>();
         channelGroups = new ArrayList<>();
     }
@@ -87,9 +91,9 @@ public class HereNow extends Endpoint<Envelope<JsonElement>, PNHereNowResult> {
         }
 
         if (channels.size() > 0 || channelGroups.size() > 0) {
-            return this.getRetrofit().getPresenceService().hereNow(this.getPubnub().getConfiguration().getSubscribeKey(), channelCSV, params);
+            return this.getRetrofit().getExtendedPresenceService().hereNow(this.getPubnub().getConfiguration().getSubscribeKey(), channelCSV, params);
         } else {
-            return this.getRetrofit().getPresenceService().globalHereNow(this.getPubnub().getConfiguration().getSubscribeKey(), params);
+            return this.getRetrofit().getExtendedPresenceService().globalHereNow(this.getPubnub().getConfiguration().getSubscribeKey(), params);
         }
     }
 

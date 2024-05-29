@@ -10,10 +10,11 @@ import com.pubnub.api.endpoints.objects_api.utils.Include.HavingCustomInclude;
 import com.pubnub.api.enums.PNOperationType;
 import com.pubnub.api.managers.RetrofitManager;
 import com.pubnub.api.managers.TelemetryManager;
+import com.pubnub.api.managers.token_manager.TokenManager;
 import com.pubnub.api.models.consumer.objects_api.channel.PNChannelMetadata;
 import com.pubnub.api.models.consumer.objects_api.channel.PNSetChannelMetadataResult;
-import com.pubnub.api.models.server.objects_api.SetChannelMetadataPayload;
 import com.pubnub.api.models.server.objects_api.EntityEnvelope;
+import com.pubnub.api.models.server.objects_api.SetChannelMetadataPayload;
 import lombok.AllArgsConstructor;
 import retrofit2.Call;
 import retrofit2.Response;
@@ -25,11 +26,12 @@ public abstract class SetChannelMetadata
         extends ChannelEnpoint<EntityEnvelope<PNChannelMetadata>, PNSetChannelMetadataResult>
         implements CustomIncludeAware<SetChannelMetadata> {
     SetChannelMetadata(final String channel,
-                              final PubNub pubnubInstance,
-                              final TelemetryManager telemetry,
-                              final RetrofitManager retrofitInstance,
-                              final CompositeParameterEnricher compositeParameterEnricher) {
-        super(channel, pubnubInstance, telemetry, retrofitInstance, compositeParameterEnricher);
+                       final PubNub pubnubInstance,
+                       final TelemetryManager telemetry,
+                       final RetrofitManager retrofitInstance,
+                       final CompositeParameterEnricher compositeParameterEnricher,
+                       final TokenManager tokenManager) {
+        super(channel, pubnubInstance, telemetry, retrofitInstance, compositeParameterEnricher, tokenManager);
     }
 
     public abstract SetChannelMetadata description(String description);
@@ -38,12 +40,17 @@ public abstract class SetChannelMetadata
 
     public abstract SetChannelMetadata custom(Map<String, Object> custom);
 
+    public abstract SetChannelMetadata status(String status);
+
+    public abstract SetChannelMetadata type(String status);
+
     public static Builder builder(final PubNub pubnubInstance,
                                   final TelemetryManager telemetry,
-                                  final RetrofitManager retrofitInstance) {
-        final CompositeParameterEnricher compositeParameterEnricher = CompositeParameterEnricher.createDefault();
+                                  final RetrofitManager retrofitInstance,
+                                  final TokenManager tokenManager) {
+        final CompositeParameterEnricher compositeParameterEnricher = CompositeParameterEnricher.createDefault(true, true);
         return new Builder(pubnubInstance, telemetry, retrofitInstance,
-                compositeParameterEnricher);
+                compositeParameterEnricher, tokenManager);
     }
 
     @AllArgsConstructor
@@ -52,10 +59,12 @@ public abstract class SetChannelMetadata
         private final TelemetryManager telemetry;
         private final RetrofitManager retrofitInstance;
         private final CompositeParameterEnricher compositeParameterEnricher;
+        private final TokenManager tokenManager;
 
         @Override
         public SetChannelMetadata channel(final String channel) {
-            return new SetChannelMetadataCommand(channel, pubnubInstance, telemetry, retrofitInstance, compositeParameterEnricher);
+            return new SetChannelMetadataCommand(channel, pubnubInstance, telemetry, retrofitInstance, compositeParameterEnricher,
+                    tokenManager);
         }
     }
 }
@@ -64,20 +73,23 @@ final class SetChannelMetadataCommand extends SetChannelMetadata implements Havi
     private String name;
     private String description;
     private Object custom;
+    private String status;
+    private String type;
 
     SetChannelMetadataCommand(final String channel,
                               final PubNub pubNub,
                               final TelemetryManager telemetryManager,
                               final RetrofitManager retrofitManager,
-                              final CompositeParameterEnricher compositeParameterEnricher) {
-        super(channel, pubNub, telemetryManager, retrofitManager, compositeParameterEnricher);
+                              final CompositeParameterEnricher compositeParameterEnricher,
+                              final TokenManager tokenManager) {
+        super(channel, pubNub, telemetryManager, retrofitManager, compositeParameterEnricher, tokenManager);
     }
 
     @Override
     protected Call<EntityEnvelope<PNChannelMetadata>> executeCommand(final Map<String, String> effectiveParams)
             throws PubNubException {
         final SetChannelMetadataPayload setChannelMetadataPayload = new SetChannelMetadataPayload(name, description,
-                custom);
+                custom, status, type);
         return getRetrofit()
                 .getChannelMetadataService()
                 .setChannelsMetadata(getPubnub().getConfiguration().getSubscribeKey(), channel,
@@ -120,6 +132,18 @@ final class SetChannelMetadataCommand extends SetChannelMetadata implements Havi
     @Override
     public SetChannelMetadata custom(final Map<String, Object> custom) {
         this.custom = new HashMap<>(custom);
+        return this;
+    }
+
+    @Override
+    public SetChannelMetadata status(String status) {
+        this.status = status;
+        return this;
+    }
+
+    @Override
+    public SetChannelMetadata type(String type) {
+        this.type = type;
         return this;
     }
 }

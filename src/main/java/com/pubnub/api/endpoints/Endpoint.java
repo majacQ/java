@@ -13,6 +13,7 @@ import com.pubnub.api.enums.PNStatusCategory;
 import com.pubnub.api.managers.MapperManager;
 import com.pubnub.api.managers.RetrofitManager;
 import com.pubnub.api.managers.TelemetryManager;
+import com.pubnub.api.managers.token_manager.TokenManager;
 import com.pubnub.api.models.consumer.PNErrorData;
 import com.pubnub.api.models.consumer.PNStatus;
 import lombok.AccessLevel;
@@ -20,6 +21,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
 import lombok.extern.java.Log;
+import okhttp3.ResponseBody;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import retrofit2.Call;
@@ -67,9 +69,16 @@ public abstract class Endpoint<Input, Output> implements RemoteAction<Output> {
 
     private MapperManager mapper;
 
-    public Endpoint(PubNub pubnubInstance, TelemetryManager telemetry, RetrofitManager retrofitInstance) {
+    private final TokenManager tokenManager;
+
+    public Endpoint(PubNub pubnubInstance,
+                    TelemetryManager telemetry,
+                    RetrofitManager retrofitInstance,
+                    TokenManager tokenManager) {
         this.pubnub = pubnubInstance;
         this.retrofit = retrofitInstance;
+        this.tokenManager = tokenManager;
+
         this.mapper = this.pubnub.getMapper();
         this.telemetryManager = telemetry;
     }
@@ -147,8 +156,12 @@ public abstract class Endpoint<Input, Output> implements RemoteAction<Output> {
                     ArrayList<String> affectedChannels = new ArrayList<>();
                     ArrayList<String> affectedChannelGroups = new ArrayList<>();
 
-                    try {
-                        responseBodyText = response.errorBody().string();
+                    try (ResponseBody errorBody = response.errorBody()) {
+                        if (errorBody != null) {
+                            responseBodyText = errorBody.string();
+                        } else {
+                            responseBodyText = "N/A";
+                        }
                     } catch (IOException e) {
                         responseBodyText = "N/A";
                     }
@@ -291,6 +304,10 @@ public abstract class Endpoint<Input, Output> implements RemoteAction<Output> {
      */
     @Override
     public void silentCancel() {
+        if (call == null) {
+            System.out.println("CALL IS NULL!");
+            System.exit(-1);
+        }
         if (call != null && !call.isCanceled()) {
             this.silenceFailures = true;
             call.cancel();
@@ -357,7 +374,7 @@ public abstract class Endpoint<Input, Output> implements RemoteAction<Output> {
         }
 
         params.put("pnsdk", "PubNub-Java-Unified/".concat(this.pubnub.getVersion()));
-        params.put("uuid", this.pubnub.getConfiguration().getUuid());
+        params.put("uuid", this.pubnub.getConfiguration().getUserId().getValue());
 
         if (this.pubnub.getConfiguration().isIncludeInstanceIdentifier()) {
             params.put("instanceid", pubnub.getInstanceId());
@@ -367,9 +384,13 @@ public abstract class Endpoint<Input, Output> implements RemoteAction<Output> {
             params.put("requestid", pubnub.getRequestId());
         }
 
-        // add the auth key for publish and subscribe.
-        if (this.pubnub.getConfiguration().getAuthKey() != null && isAuthRequired()) {
-            params.put(PubNubUtil.AUTH_QUERY_PARAM_NAME, pubnub.getConfiguration().getAuthKey());
+        if (isAuthRequired()) {
+            final String token = tokenManager.getToken();
+            if (token != null) {
+                params.put(PubNubUtil.AUTH_QUERY_PARAM_NAME, token);
+            } else if (this.pubnub.getConfiguration().getAuthKey() != null) {
+                params.put(PubNubUtil.AUTH_QUERY_PARAM_NAME, pubnub.getConfiguration().getAuthKey());
+            }
         }
 
         if (this.telemetryManager != null) {

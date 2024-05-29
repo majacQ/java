@@ -7,14 +7,15 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.UUID;
 
 public class PubNubTest {
     private PubNub pubnub;
     private PNConfiguration pnConfiguration;
 
     @Before
-    public void beforeEach() throws IOException {
-        pnConfiguration = new PNConfiguration();
+    public void beforeEach() throws IOException, PubNubException {
+        pnConfiguration = new PNConfiguration(new UserId("pn-" + UUID.randomUUID()));
         pnConfiguration.setSubscribeKey("demo");
         pnConfiguration.setPublishKey("demo");
         pnConfiguration.setUseRandomInitializationVector(false);
@@ -99,7 +100,7 @@ public class PubNubTest {
         pubnub = new PubNub(pnConfiguration);
         String version = pubnub.getVersion();
         int timeStamp = pubnub.getTimestamp();
-        Assert.assertEquals("5.1.0", version);
+        Assert.assertEquals("6.4.5", version);
         Assert.assertTrue(timeStamp > 0);
     }
 

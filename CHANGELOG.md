@@ -1,7 +1,168 @@
+## v6.4.5
+December 18 2023
+
+#### Fixed
+- Added reading message type from fetch messages response.
+- Added random value 0.001-0.999s to delay between retries both for Linear and Exponential reconnection policies.
+
+## v6.4.4
+November 30 2023
+
+#### Fixed
+- Bring back compatibility with Android 6+ by removing the Jackson library dependency.
+
+
+
+## v6.4.3
+November 28 2023
+
+#### Added
+- Add `error` field to `PNFileEventResult` and set it in case of decryption failure.
+
+## v6.4.2
+November 23 2023
+
+#### Fixed
+- Handle unencrypted message in subscribe and history when crypto configured (error flag is set on message result).
+
+## v6.4.1
+October 30 2023
+
+#### Fixed
+- Updated the JSON lib to version 20231013.
+- Changed license type from MIT to PubNub Software Development Kit License.
+
+## v6.4.0
+October 16 2023
+
+#### Added
+- Add crypto module that allows configure SDK to encrypt and decrypt messages.
+
+#### Fixed
+- Improved security of crypto implementation by adding enhanced AES-CBC cryptor.
+
+## v6.3.6
+June 19 2023
+
+#### Added
+- Added possibility to set state using heartbeat endpoint. .
+
+## v6.3.5
+May 18 2023
+
+#### Fixed
+- In case of error retry heartbeat call limited number of times.
+
+## v6.3.4
+March 06 2023
+
+#### Fixed
+- Upgraded json lib.
+
+## v6.3.3
+March 06 2023
+
+#### Fixed
+- Upgraded jackson-databind lib to remove security vulnerabilities.
+
+## v6.3.2
+February 23 2023
+
+#### Fixed
+- Remove deprecation for Grant Token methods.
+
+## v6.3.1
+December 15 2022
+
+#### Fixed
+- In case of an error response it checks if there's a body before reading from it.
+
+## v6.3.0
+November 07 2022
+
+#### Added
+- Added acceptance tests for ObjectsV2 feature.
+-  Added possibility to add status when setting ChannelMembers.
+- Added status and type to query parameters for objectV2 REST calls. For membership and member only status.
+
+#### Modified
+- Upgrade OkHttp lib to 4.9.3.
+
+## v6.2.0
+September 20 2022
+
+#### Added
+- PNFileEventResult has messageJson field with the same JsonElement type as in other events.
+
+## v6.1.0
+July 21 2022
+
+#### Added
+- Add support for spaces and users permissions in grantToken.
+- Add userId to PNConfiguration and deprecate uuid .
+
+## v6.0.2
+May 19 2022
+
+#### Fixed
+- Upgraded gson to 2.9.0 to make SDK working under Java 17.
+
+## v6.0.1
+May 09 2022
+
+#### Fixed
+- Do heartbeat and leave calls sequentially to prevent race condition between these two calls and 'phantom' join after leave.
+
+## v6.0.0
+January 12 2022
+
+#### Modified
+- BREAKING CHANGES: uuid is required parameter in PNConfiguration constructor.
+
+## v5.3.0
+December 16 2021
+
+#### Added
+- Add revoke token feature.
+
+## v5.2.4
+December 09 2021
+
+#### Fixed
+- Emit PNReconnectedCategory in case of successful manual reconnection.
+
+## v5.2.3
+November 17 2021
+
+#### Fixed
+- Eviction of OkHttp connection pool after reestablishing connection (affects transactional calls).
+
+## v5.2.2
+November 04 2021
+
+#### Fixed
+- Reconnect always restarts the subscription connection.
+
+## [v5.2.1](https://github.com/pubnub/java/releases/tag/v5.2.1)
+October-06-2021
+
+[Full Changelog](https://github.com/pubnub/java/compare/v5.2.0...v5.2.1)
+
+- 🌟️ Acceptance tests plugged into CI pipeline. 
+- 🐛 Meta field exposed correctly in PNToken class. 
+
+## [v5.2.0](https://github.com/pubnub/java/releases/tag/v5.2.0)
+September-08-2021
+
+- 🌟️ Extend grantToken method to enable control of Objects API permission. Enhance granularity of permission control to enable permissions per UUID. 
+
+## [v5.1.1](https://github.com/pubnub/java/releases/tag/v5.1.1)
+July-13-2021
+
+- 🐛 Update Jackson libraries to avoid known vulnerabilities. 
+
 ## [v5.1.0](https://github.com/pubnub/java/releases/tag/v5.1.0)
 May-20-2021
-
-[Full Changelog](https://github.com/pubnub/java/compare/v5.0.0...v5.1.0)
 
 - 🌟️ Method grantToken has beed added. It allows generation of signed token with permissions for channels and channel groups. 
 - 🐛 UUID is now exposed as PNMembership field which make is accessible from PNMembershipResult argument of SubscribeCallback.membership() method. 

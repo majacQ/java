@@ -8,6 +8,7 @@ import com.pubnub.api.builder.dto.StateOperation;
 import com.pubnub.api.builder.dto.SubscribeOperation;
 import com.pubnub.api.builder.dto.TimetokenAndRegionOperation;
 import com.pubnub.api.builder.dto.UnsubscribeOperation;
+import com.pubnub.api.enums.PNStatusCategory;
 import com.pubnub.api.models.SubscriptionItem;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -67,7 +68,7 @@ public class StateManager {
     private String region = null;
 
     private final PNConfiguration configuration;
-    private boolean shouldAnnounce = false;
+    private PNStatusCategory announceStatus = null;
 
     public StateManager(final PNConfiguration configuration) {
         this.configuration = configuration;
@@ -79,13 +80,14 @@ public class StateManager {
             if (pubSubOperation instanceof SubscribeOperation) {
                 if (adaptSubscribeBuilder((SubscribeOperation) pubSubOperation)) {
                     stateChanged = true;
-                    shouldAnnounce = true;
+                    announceStatus = PNStatusCategory.PNConnectedCategory;
                 }
             } else if (pubSubOperation instanceof UnsubscribeOperation) {
                 unsubscribe((UnsubscribeOperation) pubSubOperation);
                 stateChanged = true;
-                shouldAnnounce = true;
+                announceStatus = PNStatusCategory.PNConnectedCategory;
             } else if (pubSubOperation instanceof StateOperation) {
+                stateChanged = true;
                 adaptStateBuilder((StateOperation) pubSubOperation);
             } else if (pubSubOperation instanceof PresenceOperation) {
                 adaptPresenceBuilder((PresenceOperation) pubSubOperation);
@@ -98,7 +100,12 @@ public class StateManager {
             } else if (pubSubOperation instanceof ChangeTemporaryUnavailableOperation) {
                 changeTemporary((ChangeTemporaryUnavailableOperation) pubSubOperation);
             } else if (pubSubOperation instanceof PubSubOperation.ConnectedStatusAnnouncedOperation) {
-                shouldAnnounce = false;
+                announceStatus = null;
+            } else if (pubSubOperation instanceof PubSubOperation.ReconnectOperation) {
+                stateChanged = true;
+                announceStatus = PNStatusCategory.PNReconnectedCategory;
+                storedTimetoken = timetoken;
+                timetoken = 0L;
             }
         }
         return stateChanged;
@@ -127,12 +134,12 @@ public class StateManager {
                 region,
                 hasAnythingToSubscribe(),
                 subscribedToOnlyTemporaryUnavailable(),
-                shouldAnnounce
+                announceStatus
         );
     }
 
+    @SuppressWarnings("deprecation")
     public synchronized HeartbeatStateData heartbeatStateData() {
-        //noinspection deprecation
         if (configuration.isManagePresenceListManually()) {
             return new HeartbeatStateData(createHeartbeatStatePayload(),
                     getNames(heartbeatGroups),
@@ -472,7 +479,10 @@ public class StateManager {
         private final String region;
         private final boolean anythingToSubscribe;
         private final boolean subscribedToOnlyTemporaryUnavailable;
-        private final boolean shouldAnnounce;
+        private final PNStatusCategory announceStatus;
+        public boolean isShouldAnnounce() {
+            return announceStatus != null;
+        }
     }
 
     @Data

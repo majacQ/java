@@ -16,8 +16,10 @@ import com.pubnub.api.endpoints.presence.Leave;
 import com.pubnub.api.endpoints.pubsub.Subscribe;
 import com.pubnub.api.enums.PNHeartbeatNotificationOptions;
 import com.pubnub.api.enums.PNStatusCategory;
+import com.pubnub.api.managers.token_manager.TokenManager;
 import com.pubnub.api.models.consumer.PNStatus;
 import com.pubnub.api.models.server.SubscribeMessage;
+import com.pubnub.api.workers.SubscribeMessageProcessor;
 import com.pubnub.api.workers.SubscribeMessageWorker;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -27,6 +29,7 @@ import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.pubnub.api.managers.StateManager.ChannelFilter.WITHOUT_TEMPORARY_UNAVAILABLE;
 import static com.pubnub.api.managers.StateManager.MILLIS_IN_SECOND;
@@ -37,11 +40,15 @@ public class SubscriptionManager {
 
     private static final int HEARTBEAT_INTERVAL_MULTIPLIER = 1000;
 
+    private static final int MAX_HEARTBEAT_RETRIES = 5;
+
     private volatile boolean connected;
-    private volatile boolean httpRequestPending = false;
+
+    private final AtomicInteger heartbeatRetries = new AtomicInteger(0);
 
     PubNub pubnub;
     private final TelemetryManager telemetryManager;
+    private final TokenManager tokenManager;
     private Subscribe subscribeCall;
     private Heartbeat heartbeatCall;
 
@@ -72,7 +79,8 @@ public class SubscriptionManager {
                                final ListenerManager listenerManager,
                                final ReconnectionManager reconnectionManager,
                                final DelayedReconnectionManager delayedReconnectionManager,
-                               final DuplicationManager duplicationManager) {
+                               final DuplicationManager duplicationManager,
+                               final TokenManager tokenManager) {
         this.pubnub = pubnubInstance;
         this.telemetryManager = telemetry;
 
@@ -84,11 +92,13 @@ public class SubscriptionManager {
         this.delayedReconnectionManager = delayedReconnectionManager;
         this.retrofitManager = retrofitManagerInstance;
         this.duplicationManager = duplicationManager;
+        this.tokenManager = tokenManager;
+
 
         final ReconnectionCallback reconnectionCallback = new ReconnectionCallback() {
             @Override
             public void onReconnection() {
-                reconnect(PubSubOperation.NO_OP);
+                reconnect(PubSubOperation.RECONNECT);
                 StateManager.SubscriptionStateData subscriptionStateData = subscriptionState.subscriptionStateData(true);
                 PNStatus pnStatus = PNStatus.builder()
                         .error(false)
@@ -121,7 +131,7 @@ public class SubscriptionManager {
 
         if (this.pubnub.getConfiguration().isStartSubscriberThread()) {
             consumerThread = new Thread(new SubscribeMessageWorker(
-                    this.pubnub, listenerManager, messageQueue, duplicationManager));
+                    listenerManager, messageQueue, new SubscribeMessageProcessor(this.pubnub, duplicationManager)));
             consumerThread.setName("Subscription Manager Consumer Thread");
             consumerThread.setDaemon(true);
             consumerThread.start();
@@ -129,10 +139,10 @@ public class SubscriptionManager {
     }
 
     public void reconnect() {
-        reconnect(PubSubOperation.NO_OP);
+        reconnect(PubSubOperation.RECONNECT);
     }
 
-    private void reconnect(PubSubOperation pubSubOperation) {
+    private synchronized void reconnect(PubSubOperation pubSubOperation) {
         connected = true;
         this.startSubscribeLoop(pubSubOperation);
         this.registerHeartbeatTimer(PubSubOperation.NO_OP);
@@ -162,7 +172,8 @@ public class SubscriptionManager {
     }
 
     public void adaptStateBuilder(StateOperation stateOperation) {
-        reconnect(stateOperation);
+        connected = true;
+        this.startSubscribeLoop(stateOperation);
     }
 
     public void adaptSubscribeBuilder(SubscribeOperation subscribeOperation) {
@@ -171,7 +182,7 @@ public class SubscriptionManager {
 
     public void adaptPresenceBuilder(PresenceOperation presenceOperation) {
         if (!this.pubnub.getConfiguration().isSuppressLeaveEvents() && !presenceOperation.isConnected()) {
-            new Leave(pubnub, this.telemetryManager, this.retrofitManager)
+            new Leave(pubnub, this.telemetryManager, this.retrofitManager, tokenManager)
                     .channels(presenceOperation.getChannels()).channelGroups(presenceOperation.getChannelGroups())
                     .async(new PNCallback<Boolean>() {
                         @Override
@@ -185,8 +196,10 @@ public class SubscriptionManager {
     }
 
     public void adaptUnsubscribeBuilder(UnsubscribeOperation unsubscribeOperation) {
+        reconnect(unsubscribeOperation);
+
         if (!this.pubnub.getConfiguration().isSuppressLeaveEvents()) {
-            new Leave(pubnub, this.telemetryManager, this.retrofitManager)
+            new Leave(pubnub, this.telemetryManager, this.retrofitManager, tokenManager)
                     .channels(unsubscribeOperation.getChannels())
                     .channelGroups(unsubscribeOperation.getChannelGroups())
                     .async(new PNCallback<Boolean>() {
@@ -201,8 +214,6 @@ public class SubscriptionManager {
                         }
                     });
         }
-
-        reconnect(unsubscribeOperation);
     }
 
     private synchronized void registerHeartbeatTimer(PubSubOperation pubSubOperation) {
@@ -229,6 +240,11 @@ public class SubscriptionManager {
             timer.cancel();
             timer = null;
         }
+        if (heartbeatCall != null) {
+            heartbeatCall.silentCancel();
+            heartbeatCall = null;
+        }
+        heartbeatRetries.set(0);
     }
 
     private synchronized void cancelDelayedLoopIterationForTemporaryUnavailableChannels() {
@@ -252,11 +268,10 @@ public class SubscriptionManager {
 
     /**
      * user is calling subscribe:
-     *
+     * <p>
      * if the state has changed we should restart the subscribe loop
      * if the state hasn't change but the loop is not running we should restart the loop
      * if the state hasn't change and the loop is running fine, we should do nothing
-     *
      */
 
     synchronized void startSubscribeLoop(final PubSubOperation... pubSubOperations) {
@@ -264,10 +279,9 @@ public class SubscriptionManager {
             return;
         }
         boolean subscriptionLoopStateChanged = subscriptionState.handleOperation(pubSubOperations);
-        if (!subscriptionLoopStateChanged && httpRequestPending) {
+        if (!subscriptionLoopStateChanged) {
             return;
         }
-
         stopSubscribeLoop();
 
         for (PubSubOperation pubSubOperation : pubSubOperations) {
@@ -289,8 +303,7 @@ public class SubscriptionManager {
             return;
         }
 
-        httpRequestPending = true;
-        subscribeCall = new Subscribe(pubnub, this.retrofitManager)
+        subscribeCall = new Subscribe(pubnub, this.retrofitManager, tokenManager)
                 .channels(subscriptionStateData.getChannels())
                 .channelGroups(subscriptionStateData.getChannelGroups())
                 .timetoken(subscriptionStateData.getTimetoken())
@@ -299,7 +312,6 @@ public class SubscriptionManager {
                 .state(subscriptionStateData.getStatePayload());
 
         subscribeCall.async((result, status) -> {
-            httpRequestPending = false;
             if (status.isError()) {
                 handleError(status, pubSubOperations);
             } else {
@@ -324,7 +336,7 @@ public class SubscriptionManager {
                 final PubSubOperation statusAnnouncedOperation;
                 if (subscriptionStateData.isShouldAnnounce()) {
                     PNStatus pnStatus = createPublicStatus(status)
-                            .category(PNStatusCategory.PNConnectedCategory)
+                            .category(subscriptionStateData.getAnnounceStatus())
                             .error(false)
                             .build();
                     listenerManager.announce(pnStatus);
@@ -441,7 +453,7 @@ public class SubscriptionManager {
             statePayload = heartbeatStateData.getStatePayload();
         }
 
-        heartbeatCall = new Heartbeat(pubnub, this.telemetryManager, this.retrofitManager)
+        heartbeatCall = new Heartbeat(pubnub, this.telemetryManager, this.retrofitManager, this.tokenManager)
                 .channels(heartbeatChannels)
                 .channelGroups(heartbeatChannelGroups)
                 .state(statePayload);
@@ -453,15 +465,17 @@ public class SubscriptionManager {
                         pubnub.getConfiguration().getHeartbeatNotificationOptions();
 
                 if (status.isError()) {
+                    if (heartbeatRetries.getAndIncrement() >= MAX_HEARTBEAT_RETRIES) {
+                        stopHeartbeatTimer();
+                    }
+
                     if (heartbeatVerbosity == PNHeartbeatNotificationOptions.ALL
                             || heartbeatVerbosity == PNHeartbeatNotificationOptions.FAILURES) {
                         listenerManager.announce(status);
                     }
 
-                    // stop the heartbeating logic since an error happened.
-                    stopHeartbeatTimer();
-
                 } else {
+                    heartbeatRetries.set(0);
                     if (heartbeatVerbosity == PNHeartbeatNotificationOptions.ALL) {
                         listenerManager.announce(status);
                     }

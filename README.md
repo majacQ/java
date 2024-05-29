@@ -1,10 +1,17 @@
+**!!!!!!!!!!**
+
+**PubNub Java SDK development has moved to the [PubNub Kotlin SDK](https://github.com/pubnub/kotlin) repository.**
+
+**This repository is no longer being updated.**
+
+**!!!!!!!!!!**
+
 # PubNub Java-based SDKs for Java / Android
 
 [![Build Status](https://travis-ci.com/pubnub/java.svg?branch=master)](https://travis-ci.com/pubnub/java)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/164fd518c314417e896b3de494ab75df)](https://www.codacy.com/app/PubNub/java?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=pubnub/java&amp;utm_campaign=Badge_Grade)
 [![Codacy Badge](https://api.codacy.com/project/badge/Coverage/164fd518c314417e896b3de494ab75df)](https://www.codacy.com/app/PubNub/java?utm_source=github.com&utm_medium=referral&utm_content=pubnub/java&utm_campaign=Badge_Coverage)
-[![Download](https://api.bintray.com/packages/bintray/jcenter/com.pubnub%3Apubnub-gson/images/download.svg)](https://bintray.com/bintray/jcenter/com.pubnub%3Apubnub-gson/_latestVersion)
-[![Maven Central](https://img.shields.io/maven-central/v/com.pubnub/pubnub-gson.svg)]()
+[![Maven Central](https://img.shields.io/maven-central/v/com.pubnub/pubnub-gson.svg)](https://maven-badges.herokuapp.com/maven-central/com.pubnub/pubnub-gson)
 
 This is the official PubNub Java SDK repository.
 
@@ -23,22 +30,21 @@ You will need the publish and subscribe keys to authenticate your app. Get your 
      <dependency>
        <groupId>com.pubnub</groupId>
        <artifactId>pubnub-gson</artifactId>
-       <version>5.1.0</version>
+       <version>6.4.5</version>
      </dependency>
      ```
 
    * for Gradle, add the following dependency in your `gradle.build`:
      ```groovy
-     compile group: 'com.pubnub', name: 'pubnub-gson', version: '5.1.0'
+     implementation 'com.pubnub:pubnub-gson:6.4.5'
      ```
 
 2. Configure your keys:
 
     ```java
-    PNConfiguration pnConfiguration = new PNConfiguration();
+    PNConfiguration pnConfiguration = new PNConfiguration(new UserId("myUserId"));
     pnConfiguration.setSubscribeKey("mySubscribeKey");
     pnConfiguration.setPublishKey("myPublishKey");
-    pnConfiguration.setUuid("myUniqueUUID");
     
     PubNub pubnub = new PubNub(pnConfiguration);
     ```
